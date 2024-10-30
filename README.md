@@ -9,14 +9,18 @@ Loading and processing a bitmap image
 Tasks:  
 1. Determine the amount of memory allocated to load the image.  
 2. Upload the image to memory.  
-3. Rotate the image 90  
-degrees clockwise. Save the result.  
-3'. Rotate the image 90  
-degrees counterclockwise. Save the result.  
+3. Rotate the image 90 degrees clockwise. Save the result.  
+3'. Rotate the image 90 degrees counterclockwise. Save the result.  
 4. Apply a Gaussian filter to the rotated image. Save the result.  
 
+The BMPHeader, DIBHeader, and BMPFile classes are declared in the  
+bmp_header.hpp header file. The BMPFile class contains the  
+main methods of working with a file: loading, rotating the  
+image to the right \ to the left and applying the Gauss filter (in development).
+
 ## Build
-
+make
 ## Run
-
+./app
 ## Clean
+make clean
