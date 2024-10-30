@@ -8,18 +8,19 @@
 #include <string>
 #include "bmp_reader.hpp"
 
-int main(int argc, char* argv[]) {
-	BMPFile mybmp;
+int main() {
+	std::cout << "The BMP file processing program welcomes you.\nEnter the file name: ";
+	std::string filename; 
+	std::cin >> filename;
 
-	mybmp.readBMP(argv[1]);
+	BMPFile bmp(filename);
 
-	std::cout << '\n';
+	BMPFile bmpRight = bmp.rotateRight();
+	BMPFile bmpLeft = bmp.rotateLeft();
 
-	mybmp.printInfo();
-	
-	std::cout << '\n';
+	bmpRight.writeBMP("RightSaved" + filename);
+	bmpLeft.writeBMP("LeftSaved" + filename);
 
-	mybmp.printData();
-
-	std::cout << '\n';
+	std::cout << "TASK 3: The BMP file rotated to the right has been saved in a file " << "'RightSaved" << filename <<  "'" << '\n';
+	std::cout << "TASK 3': And rotated to the left in " << "'LeftSaved" << filename <<  "'" << '\n';
 }
