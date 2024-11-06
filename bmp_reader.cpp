@@ -22,6 +22,11 @@ BMPFile::BMPFile() {
 	dibHeader = DIBHeader();
 }
 
+BMPFile::BMPFile(BMPFile& img) :
+	bmpHeader(img.getBmpHeader()),
+	dibHeader(img.getDibHeader())
+{}
+
 BMPFile::BMPFile(const std::string& filename) {
 	readBMP(filename);
 }
@@ -147,6 +152,9 @@ void BMPFile::writeBMP(const std::string& filename) {
 	file.close();
 }
 
+void BMPFile::setData(unsigned char* _data) {
+	data = _data;
+}
 
 void BMPFile::printInfo() {
 	bmpHeader.printInfo();
@@ -164,6 +172,33 @@ void BMPFile::printData() {
 	}
 }
 
+unsigned int BMPFile::getHeight() {
+	return dibHeader.getHeight();
+}
+
+unsigned int BMPFile::getWidth() {
+	return dibHeader.getWidth();
+}
+
+unsigned int BMPFile::getBitsPerPixel() {
+	return dibHeader.getBitsPerPixel();
+}
+
+unsigned char* BMPFile::getData() {
+	return data;
+}
+
+unsigned int BMPFile::getDataSize() {
+	return dibHeader.getDataSize();
+}
+
+BMPHeader BMPFile::getBmpHeader() {
+	return bmpHeader;
+}
+
+DIBHeader BMPFile::getDibHeader() {
+	return dibHeader;
+}
 
 // BMPHeader
 
@@ -282,4 +317,231 @@ void DIBHeader::setPWidth(const unsigned int& newPWidth) {
 
 void DIBHeader::setPHeight(const unsigned int& newPHeight) {
 	pheight = newPHeight;
+}
+
+
+
+// RGBPixel
+
+RGBPixel::RGBPixel() :
+	red(0),
+	green(0),
+	blue(0)
+{}
+
+RGBPixel::RGBPixel(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue) :
+	red(_red),
+	green(_green),
+	blue(_blue)
+{}
+
+
+unsigned char RGBPixel::getRed() {
+	return red;
+}
+
+unsigned char RGBPixel::getGreen() {
+	return green;
+}
+
+unsigned char RGBPixel::getBlue() {
+	return blue;
+}
+
+void RGBPixel::setRed(const unsigned char& _red) {
+	red = _red;
+}
+
+void RGBPixel::setGreen(const unsigned char& _green) {
+	green = _green;
+}
+
+void RGBPixel::setBlue(const unsigned char& _blue) {
+	blue = _blue;
+}
+
+void RGBPixel::setAll(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue) {
+	red = _red;
+	green = _green;
+	blue = _blue;
+}
+
+void RGBPixel::printPix() {
+	printf("%02x ", red);
+	printf("%02x ", green);
+	printf("%02x ", blue);
+}
+
+
+// Gauss
+
+Gauss::Gauss() :
+	kernelSize(0),
+	sigma(0),
+	kernel(0)
+{}
+
+Gauss::Gauss(const unsigned int& _kernelSize, const double& _sigma) :
+	kernelSize(_kernelSize),
+	sigma(_sigma),
+	kernel(0)
+{}
+
+void Gauss::createGaussKernel() {
+	kernel = new double*[kernelSize];
+	for (uint i = 0; i < kernelSize; ++i)
+		kernel[i] = new double[kernelSize];
+
+
+	int radius = kernelSize / 2;
+
+	double sum = 0.0;
+	for (int y = -radius; y <= radius; ++y) {
+		for (int x = -radius; x <= radius; ++x) {
+			double value = gaussFunc(x, y, sigma);
+			sum += value;
+			kernel[y + radius][x + radius] = value;
+		}
+	}
+
+	for (uint x = 0; x < kernelSize; ++x) {
+		for (uint y = 0; y < kernelSize; ++y) {
+			kernel[x][y] /= sum;
+		}
+	}
+}
+
+double Gauss::gaussFunc(int x, int y, double sigma) {
+	return ((1. / (2 * M_PI * sigma * sigma)) * exp(-((x * x + y * y) / (2 * sigma * sigma))));
+}
+
+void Gauss::printKernel() {
+	for (uint i = 0; i < kernelSize; ++i) {
+		for (uint j = 0; j < kernelSize; ++j) {
+			std::cout << kernel[i][j] << ' ';
+		}
+		std::cout << '\n';
+	}
+}
+
+RGBPixel** Gauss::rawToRGB(BMPFile& img) {
+	unsigned char* data = img.getData();
+
+	unsigned int h = img.getHeight(), w = img.getWidth();
+	unsigned int cntBytePix = img.getBitsPerPixel() / 8;
+	unsigned int countOfByte = cntBytePix * w;
+	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
+
+	RGBPixel** res = new RGBPixel*[h];
+	for (uint i = 0; i < h; ++i)
+		res[i] = new RGBPixel[w];
+
+	unsigned int curDataIndex = 0;
+	int ri = h - 1, rj = 0;
+	while (ri >= 0) {
+		while (rj < (int)w) {
+			res[ri][rj].setBlue(data[curDataIndex]);
+			res[ri][rj].setGreen(data[curDataIndex + 1]);
+			res[ri][rj].setRed(data[curDataIndex + 2]);
+
+			rj++;
+			curDataIndex += cntBytePix;
+		}
+		curDataIndex += countOfNull;
+
+		ri--;
+		rj = 0;
+	}
+
+	return res;
+}
+
+RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned int width) {
+	unsigned int h = height;
+	unsigned int w = width;
+
+	RGBPixel** res = new RGBPixel*[h];
+	for (uint i = 0; i < h; ++i)
+		res[i] = new RGBPixel[w];
+
+	int radius = kernelSize / 2;
+
+	for (uint x = 0; x < h; ++x) {
+		for (uint y = 0; y < w; ++y) {
+			int sumR = 0;
+			int sumG = 0;
+			int sumB = 0;
+
+			for (uint kx = 0; kx < kernelSize; ++kx) {
+				for (uint ky = 0; ky < kernelSize; ++ky) {
+
+					int pixelX = (int)x - radius + (int)kx;
+					int pixelY = (int)y - radius + (int)ky;
+
+					if (pixelX < 0)
+						pixelX = -pixelX;
+					else if (pixelX >= (int)h)
+						pixelX = (int)h - (pixelX - (int)h) - 1;
+
+					if (pixelY < 0)
+						pixelY = -pixelY;
+					else if (pixelY >= (int)w)
+						pixelY = (int)w - (pixelY - (int)w) - 1;
+
+					sumR += img[pixelX][pixelY].getRed();
+					sumG += img[pixelX][pixelY].getGreen();
+					sumB += img[pixelX][pixelY].getBlue();
+				}
+			}
+
+			unsigned char newRed = std::min(std::max(sumR, 0), 255);
+			unsigned char newGreen = std::min(std::max(sumG, 0), 255);
+			unsigned char newBlue = std::min(std::max(sumB, 0), 255);
+
+			res[x][y].setAll(newRed, newGreen, newBlue);
+		}
+	}
+
+	return res;
+}
+
+unsigned char* Gauss::RGBToRaw(RGBPixel** img, unsigned int height, unsigned int width, unsigned int dataSize, unsigned int bitsPerPixel) {
+	unsigned char* data = new unsigned char[dataSize];
+
+	unsigned int h = height, w = width;
+	unsigned int cntBytePix = bitsPerPixel / 8;
+	unsigned int countOfByte = cntBytePix * w;
+	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
+
+	unsigned int curDataIndex = 0;
+	int i = h - 1;
+	int j = 0;
+	while (i >= 0) {
+		while (j < (int)w) {
+			data[curDataIndex++] = img[i][j].getBlue();
+			data[curDataIndex++] = img[i][j].getGreen();
+			data[curDataIndex++] = img[i][j].getRed();
+
+			j++;
+		}
+		for (uint el = 0; el < countOfNull; ++el)
+			data[curDataIndex++] = 0;
+
+		i--;
+		j = 0;
+	}
+
+	return data;
+}
+
+BMPFile Gauss::computeBlur(BMPFile& img) {
+	BMPFile res(img);
+	
+	RGBPixel** rgbarr = rawToRGB(img);
+	RGBPixel** convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
+	unsigned char* convdata = RGBToRaw(convarr, img.getHeight(), img.getWidth(), img.getDataSize(), img.getBitsPerPixel());
+
+	res.setData(convdata);
+
+	return res;
 }

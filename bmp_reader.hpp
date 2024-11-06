@@ -17,6 +17,8 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 #pragma pack(push, 1) // for alignment in the data
 
@@ -74,6 +76,7 @@ private:
 	unsigned char* data;
 public:
 	BMPFile();
+	BMPFile(BMPFile& p);
 	BMPFile(const std::string& filename);
 
 	void readBMP(const std::string& filename);
@@ -82,8 +85,58 @@ public:
 	BMPFile rotateRight();
 	BMPFile rotateLeft();
 
+	unsigned int getHeight();
+	unsigned int getWidth();
+	unsigned int getBitsPerPixel();
+	unsigned int getDataSize();
+	unsigned char* getData();
+	BMPHeader getBmpHeader();
+	DIBHeader getDibHeader();
+
+	void setData(unsigned char* _data);
+
 	void printInfo();
 	void printData();
+};
+
+class RGBPixel {
+private:
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+public:
+	RGBPixel();
+	RGBPixel(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue);
+
+	unsigned char getRed();
+	unsigned char getGreen();
+	unsigned char getBlue();
+
+	void setRed(const unsigned char& _red);
+	void setGreen(const unsigned char& _green);
+	void setBlue(const unsigned char& _blue);
+	void setAll(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue);
+	void printPix();
+};
+
+class Gauss {
+private:
+	unsigned int kernelSize;
+	double sigma;
+	double** kernel;
+public:
+	Gauss();
+	Gauss(const unsigned int& _kernelSize, const double& _sigma);
+
+	void createGaussKernel();
+	void printKernel();
+
+	RGBPixel** rawToRGB(BMPFile& img);
+	RGBPixel** applyConvolution(RGBPixel** img, unsigned int height, unsigned int width);
+	unsigned char* RGBToRaw(RGBPixel** img, unsigned int height, unsigned int width, unsigned int dataSize, unsigned int bitsPerPixel);
+	BMPFile computeBlur(BMPFile& img);
+
+	double gaussFunc(int x, int y, double sigma);
 };
 
 #pragma pack(pop)
