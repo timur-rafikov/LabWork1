@@ -464,13 +464,23 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 	for (uint i = 0; i < h; ++i)
 		res[i] = new RGBPixel[w];
 
+	for (uint i = 0; i < h; ++i) {
+		for (uint j = 0; j < w; ++j) {
+			res[i][j] = RGBPixel();
+		}
+	}
+
 	int radius = kernelSize / 2;
 
 	for (uint x = 0; x < h; ++x) {
 		for (uint y = 0; y < w; ++y) {
-			int sumR = 0;
-			int sumG = 0;
-			int sumB = 0;
+			//std::cout << "Pixel: ";
+			//img[x][y].printPix();
+			//std::cout << '\n';
+
+			double sumR = 0;
+			double sumG = 0;
+			double sumB = 0;
 
 			for (uint kx = 0; kx < kernelSize; ++kx) {
 				for (uint ky = 0; ky < kernelSize; ++ky) {
@@ -488,15 +498,27 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 					else if (pixelY >= (int)w)
 						pixelY = (int)w - (pixelY - (int)w) - 1;
 
-					sumR += img[pixelX][pixelY].getRed();
-					sumG += img[pixelX][pixelY].getGreen();
-					sumB += img[pixelX][pixelY].getBlue();
+					//std::cout << "PixelX: " << pixelX << ", PixelY: " << pixelY << '\n';
+
+					sumR += 1.0 * img[pixelX][pixelY].getRed() * kernel[kx][ky];
+					sumG += 1.0 * img[pixelX][pixelY].getGreen() * kernel[kx][ky];
+					sumB += 1.0 * img[pixelX][pixelY].getBlue() * kernel[kx][ky];
 				}
 			}
 
-			unsigned char newRed = std::min(std::max(sumR, 0), 255);
-			unsigned char newGreen = std::min(std::max(sumG, 0), 255);
-			unsigned char newBlue = std::min(std::max(sumB, 0), 255);
+			unsigned char newRed = std::min(std::max(sumR, 0.), 255.);
+			unsigned char newGreen = std::min(std::max(sumG, 0.), 255.);
+			unsigned char newBlue = std::min(std::max(sumB, 0.), 255.);
+
+			/*
+			std::cout << "sumR: " << sumR << '\n';
+			std::cout << "sumG: " << sumG << '\n';
+			std::cout << "sumB: " << sumB << '\n';
+
+			std::cout << "NewRed: " << newRed << '\n';
+			std::cout << "NewGreen: " << newGreen << '\n';
+			std::cout << "NewBlue: " << newBlue << '\n';*/
+			
 
 			res[x][y].setAll(newRed, newGreen, newBlue);
 		}
@@ -538,7 +560,9 @@ BMPFile Gauss::computeBlur(BMPFile& img) {
 	BMPFile res(img);
 	
 	RGBPixel** rgbarr = rawToRGB(img);
+
 	RGBPixel** convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
+
 	unsigned char* convdata = RGBToRaw(convarr, img.getHeight(), img.getWidth(), img.getDataSize(), img.getBitsPerPixel());
 
 	res.setData(convdata);
