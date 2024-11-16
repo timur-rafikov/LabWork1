@@ -12,7 +12,7 @@
 
 #ifndef BMP_READER
 #define BMP_READER
-
+// Не нужно добавлять те include, которые в этом файле не используются
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -21,7 +21,9 @@
 #include <cmath>
 
 #pragma pack(push, 1) // for alignment in the data
-
+// Не следует делать классами то, к чему пользователь не будет иметь непосредственного доступа. 
+// Пользовтель будет работать с классом BMPFile, который внутри себя содержит все эти, только вот 
+// так как они приватные, то не нужно для них делать инкапсуляцию и мучиться с реализацией ненужных вещей
 class BMPHeader {
 private:
 	unsigned char ID[2];
@@ -92,7 +94,9 @@ public:
 	unsigned char* getData();
 	BMPHeader getBmpHeader();
 	DIBHeader getDibHeader();
-
+	// Наличие таких сеттеров и неконстантныъ геттеров нарушает инкапсуляцию. Работу с Гауссом 
+	// нужно сделать либо как метод этого класса либо как дружественный, чтобы по-настоящему
+	// ограничить доступ к внутренним данным
 	void setData(unsigned char* _data);
 
 	void printInfo();
@@ -107,7 +111,7 @@ private:
 public:
 	RGBPixel();
 	RGBPixel(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue);
-
+	// Вот поэтому это не нужно делать классом. Будь эта структурой, никакие из этих методов не были бы нужны
 	unsigned char getRed();
 	unsigned char getGreen();
 	unsigned char getBlue();
@@ -118,7 +122,7 @@ public:
 	void setAll(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue);
 	void printPix();
 };
-
+// Можно в принципе агрегировать этот объект внутрь BMPFile класса, и добавить метод, который бы его использовал
 class Gauss {
 private:
 	unsigned int kernelSize;
