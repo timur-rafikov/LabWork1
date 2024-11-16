@@ -73,6 +73,8 @@ BMPFile BMPFile::rotateRight() {
 	unsigned int h = dibHeader.getHeight(), w = dibHeader.getWidth();
 	unsigned int cntBytePix = dibHeader.getBitsPerPixel() / 8;
 	unsigned char tmp[h][w * cntBytePix];
+	// Есть однозначно куда более хороший способ, плюс ты тут берешь со стека гигантский кусок памяти для временного хранилища
+	// Можно жн рассматривать одномерный массив как двумерный, просто переходя на нужную строку умножением ширины на номер строки
 	/*
 		Next comes the pixel data conversion.
 		I sat with a piece of paper for a very long time 
@@ -136,7 +138,7 @@ BMPFile BMPFile::rotateRight() {
 
 	return res;
 }
-
+// Так не пойдет. У тебя один метод в три раза медленнее другого
 BMPFile BMPFile::rotateLeft() {
 	BMPFile res = rotateRight().rotateRight().rotateRight();
 	return res;
@@ -171,7 +173,7 @@ void BMPFile::printData() {
 		printf("%02x ", data[i]);
 	}
 }
-
+// Такие маленькие функции следует определять прямо в заголовке
 unsigned int BMPFile::getHeight() {
 	return dibHeader.getHeight();
 }
@@ -423,7 +425,7 @@ void Gauss::printKernel() {
 		std::cout << '\n';
 	}
 }
-
+// Почему бы не хранить все сразу как массив структур RGB пикселей?
 RGBPixel** Gauss::rawToRGB(BMPFile& img) {
 	unsigned char* data = img.getData();
 
@@ -463,7 +465,7 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 	RGBPixel** res = new RGBPixel*[h];
 	for (uint i = 0; i < h; ++i)
 		res[i] = new RGBPixel[w];
-
+	// Будь пиксель структурой, не пришлось бы такого писать
 	for (uint i = 0; i < h; ++i) {
 		for (uint j = 0; j < w; ++j) {
 			res[i][j] = RGBPixel();
