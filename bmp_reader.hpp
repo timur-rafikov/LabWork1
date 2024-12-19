@@ -48,6 +48,35 @@ struct DIBHeader {
 	void printInfo();
 };
 
+class BMPFile {
+private:
+	BMPHeader bmpHeader;
+	DIBHeader dibHeader;
+	unsigned char* data;
+public:
+	BMPFile();
+	BMPFile(BMPFile& p);
+	BMPFile(const std::string& filename);
+	BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, unsigned char* _data);
+
+	void readBMP(const std::string& filename);
+	void writeBMP(const std::string& filename);
+
+	BMPFile rotateRight();
+	BMPFile rotateLeft();
+
+	unsigned int getHeight();
+	unsigned int getWidth();
+	unsigned int getBitsPerPixel();
+	unsigned int getDataSize();
+	unsigned char* getData();
+	BMPHeader getBmpHeader();
+	DIBHeader getDibHeader();
+
+	void printInfo();
+	void printData();
+};
+
 struct RGBPixel {
 	unsigned char red;
 	unsigned char green;
@@ -76,36 +105,6 @@ struct Gauss {
 	BMPFile computeBlur(BMPFile& img);
 
 	double gaussFunc(int x, int y, double sigma);
-};
-
-class BMPFile {
-private:
-	BMPHeader bmpHeader;
-	DIBHeader dibHeader;
-	unsigned char* data;
-public:
-	BMPFile();
-	BMPFile(BMPFile& p);
-	BMPFile(const std::string& filename);
-
-	void readBMP(const std::string& filename);
-	void writeBMP(const std::string& filename);
-
-	BMPFile rotateRight();
-	BMPFile rotateLeft();
-
-	unsigned int getHeight();
-	unsigned int getWidth();
-	unsigned int getBitsPerPixel();
-	unsigned int getDataSize();
-	unsigned char* getData();
-	BMPHeader getBmpHeader();
-	DIBHeader getDibHeader();
-
-	void setData(unsigned char* _data);
-
-	void printInfo();
-	void printData();
 };
 
 

@@ -36,6 +36,12 @@ BMPFile::BMPFile(const std::string& filename) {
 	readBMP(filename);
 }
 
+BMPFile::BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, unsigned char* _data) :
+	bmpHeader(_bmphdr),
+	dibHeader(_dibhdr),
+	data(_data)
+{}
+
 void BMPFile::readBMP(const std::string& filename) {
 	std::ifstream file(filename, std::ios::binary);
 	if (!file) {
@@ -141,8 +147,82 @@ BMPFile BMPFile::rotateRight() {
 }
 
 BMPFile BMPFile::rotateLeft() {
-	BMPFile res = rotateRight().rotateRight().rotateRight();
-	return res;
+	BMPFile res;
+	res.bmpHeader = BMPHeader(bmpHeader);
+	res.dibHeader = DIBHeader(dibHeader);
+
+	std::swap(res.dibHeader.width, res.dibHeader.height); // swapping height and width
+	std::swap(res.dibHeader.pwidth, res.dibHeader.pheight);
+
+	res.data = new unsigned char[dibHeader.dataSize];
+
+	unsigned int h = dibHeader.height, w = dibHeader.width;
+	unsigned int cntBytePix = dibHeader.bitsPerPixel / 8;
+	unsigned char tmp[h][w * cntBytePix];
+	/*
+		Next comes the pixel data conversion.
+		I sat with a piece of paper for a very long time 
+		and thought about how to expand the bytes carefully.
+
+		And in the end, I couldn't think of anything better than 
+		to first bring the pixel data into a two-dimensional array (as in the picture), and 
+		then rewrite this data into an rotated view.
+
+		Since the bmp file has the property of data alignment, 
+		we need to process the zeros at the end of each line separately.
+		Next, I count the number of zeros that will be written (this is just the inverse remainder 
+		of the number of bytes in a string modulo 4), skip them and write the data further
+	*/
+	unsigned int countOfByte = cntBytePix * w;
+	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
+	
+	unsigned int curDataIndex = 0;
+	int i = h - 1, j = 0;
+	while (i >= 0) {
+		while (j < (int)countOfByte) {
+			for (uint el = 0; el < cntBytePix; ++el) {
+				tmp[i][j + cntBytePix - el - 1] = data[curDataIndex + el]; 
+			}
+			j += cntBytePix;
+			curDataIndex += cntBytePix;
+		}
+		curDataIndex += countOfNull;
+
+		i--;
+		j = 0;
+	}
+
+	/*
+		I write data in a similar way. To do this, you need to count the number of 
+		zeros separately and write them at the end of each line
+	*/
+
+    // Write data to the result in rotated form
+    unsigned int countOfByte2 = cntBytePix * h;
+    unsigned int countOfNull2 = ((4 - (countOfByte2 % 4)) % 4);
+    char null = 0;
+
+    curDataIndex = 0;
+    j = 2; // Start from the leftmost column of the original image
+    i = 0; // Start from the topmost row of the rotated image
+    while (j < (int)(w * cntBytePix)) {
+        while (i < (int)(h)) {
+            for (uint el = 0; el < cntBytePix; ++el) {
+                res.data[curDataIndex + el] = tmp[i][j - el]; // Rotate left
+            }
+            i++;
+            curDataIndex += cntBytePix;
+        }
+
+        // Add padding bytes at the end of each row
+        for (uint el = 0; el < countOfNull2; ++el)
+            res.data[curDataIndex++] = null;
+
+        j += cntBytePix; // Move to the next column
+        i = 0; // Reset row index to the top
+    }
+
+    return res;
 }
 
 void BMPFile::writeBMP(const std::string& filename) {
@@ -153,10 +233,6 @@ void BMPFile::writeBMP(const std::string& filename) {
 	file.write(reinterpret_cast<char*>(data), dibHeader.dataSize);
 
 	file.close();
-}
-
-void BMPFile::setData(unsigned char* _data) {
-	data = _data;
 }
 
 void BMPFile::printInfo() {
@@ -389,20 +465,10 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 	for (uint i = 0; i < h; ++i)
 		res[i] = new RGBPixel[w];
 
-	for (uint i = 0; i < h; ++i) {
-		for (uint j = 0; j < w; ++j) {
-			res[i][j] = RGBPixel();
-		}
-	}
-
 	int radius = kernelSize / 2;
 
 	for (uint x = 0; x < h; ++x) {
 		for (uint y = 0; y < w; ++y) {
-			//std::cout << "Pixel: ";
-			//img[x][y].printPix();
-			//std::cout << '\n';
-
 			double sumR = 0;
 			double sumG = 0;
 			double sumB = 0;
@@ -423,8 +489,6 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 					else if (pixelY >= (int)w)
 						pixelY = (int)w - (pixelY - (int)w) - 1;
 
-					//std::cout << "PixelX: " << pixelX << ", PixelY: " << pixelY << '\n';
-
 					sumR += 1.0 * img[pixelX][pixelY].red * kernel[kx][ky];
 					sumG += 1.0 * img[pixelX][pixelY].green * kernel[kx][ky];
 					sumB += 1.0 * img[pixelX][pixelY].blue * kernel[kx][ky];
@@ -434,16 +498,6 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 			unsigned char newRed = std::min(std::max(sumR, 0.), 255.);
 			unsigned char newGreen = std::min(std::max(sumG, 0.), 255.);
 			unsigned char newBlue = std::min(std::max(sumB, 0.), 255.);
-
-			/*
-			std::cout << "sumR: " << sumR << '\n';
-			std::cout << "sumG: " << sumG << '\n';
-			std::cout << "sumB: " << sumB << '\n';
-
-			std::cout << "NewRed: " << newRed << '\n';
-			std::cout << "NewGreen: " << newGreen << '\n';
-			std::cout << "NewBlue: " << newBlue << '\n';*/
-			
 
 			res[x][y] = RGBPixel(newRed, newGreen, newBlue);
 		}
@@ -482,15 +536,13 @@ unsigned char* Gauss::RGBToRaw(RGBPixel** img, unsigned int height, unsigned int
 }
 
 BMPFile Gauss::computeBlur(BMPFile& img) {
-	BMPFile res(img);
-	
 	RGBPixel** rgbarr = rawToRGB(img);
 
 	RGBPixel** convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
 
 	unsigned char* convdata = RGBToRaw(convarr, img.getHeight(), img.getWidth(), img.getDataSize(), img.getBitsPerPixel());
 
-	res.setData(convdata);
+	BMPFile res(img.getBmpHeader(), img.getDibHeader(), convdata);
 
 	return res;
 }
