@@ -5,7 +5,12 @@
  */
 
 #include "bmp_reader.hpp"
-
+#include <fstream>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#define _USE_MATH_DEFINES
+#include <cmath>
 /*
 	I read whether it is worth making several cpp files, 
 	since there are quite a lot of functions. I have decided that I will not do this, 
@@ -48,10 +53,10 @@ void BMPFile::readBMP(const std::string& filename) {
 	file.read(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
 
 	// Reading Pixel Data
-	data = new unsigned char[dibHeader.getDataSize()];
+	data = new unsigned char[dibHeader.dataSize];
 
-	file.seekg(bmpHeader.getPixelOffset(), std::ios::beg);
-	file.read(reinterpret_cast<char*>(data), dibHeader.getDataSize());
+	file.seekg(bmpHeader.pixelOffset, std::ios::beg);
+	file.read(reinterpret_cast<char*>(data), dibHeader.dataSize);
 
 	file.close();
 
@@ -63,15 +68,13 @@ BMPFile BMPFile::rotateRight() {
 	res.bmpHeader = BMPHeader(bmpHeader);
 	res.dibHeader = DIBHeader(dibHeader);
 
-	res.dibHeader.setWidth(dibHeader.getHeight()); // swapping height and width
-	res.dibHeader.setHeight(dibHeader.getWidth());
-	res.dibHeader.setPWidth(dibHeader.getPHeight());
-	res.dibHeader.setPHeight(dibHeader.getPWidth());
+	std::swap(res.dibHeader.width, res.dibHeader.height); // swapping height and width
+	std::swap(res.dibHeader.pwidth, res.dibHeader.pheight);
 
-	res.data = new unsigned char[dibHeader.getDataSize()];
+	res.data = new unsigned char[dibHeader.dataSize];
 
-	unsigned int h = dibHeader.getHeight(), w = dibHeader.getWidth();
-	unsigned int cntBytePix = dibHeader.getBitsPerPixel() / 8;
+	unsigned int h = dibHeader.height, w = dibHeader.width;
+	unsigned int cntBytePix = dibHeader.bitsPerPixel / 8;
 	unsigned char tmp[h][w * cntBytePix];
 	/*
 		Next comes the pixel data conversion.
@@ -147,7 +150,7 @@ void BMPFile::writeBMP(const std::string& filename) {
 
 	file.write(reinterpret_cast<char*>(&bmpHeader), sizeof(bmpHeader));
 	file.write(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
-	file.write(reinterpret_cast<char*>(data), dibHeader.getDataSize());
+	file.write(reinterpret_cast<char*>(data), dibHeader.dataSize);
 
 	file.close();
 }
@@ -167,21 +170,21 @@ void BMPFile::printData() {
 			printf("\n%04x: ", i);
 		printf("%02x ", data[i]);
 	}*/
-	for (uint i = 0; i < dibHeader.getDataSize(); ++i) {
+	for (uint i = 0; i < dibHeader.dataSize; ++i) {
 		printf("%02x ", data[i]);
 	}
 }
 
 unsigned int BMPFile::getHeight() {
-	return dibHeader.getHeight();
+	return dibHeader.height;
 }
 
 unsigned int BMPFile::getWidth() {
-	return dibHeader.getWidth();
+	return dibHeader.width;
 }
 
 unsigned int BMPFile::getBitsPerPixel() {
-	return dibHeader.getBitsPerPixel();
+	return dibHeader.bitsPerPixel;
 }
 
 unsigned char* BMPFile::getData() {
@@ -189,7 +192,7 @@ unsigned char* BMPFile::getData() {
 }
 
 unsigned int BMPFile::getDataSize() {
-	return dibHeader.getDataSize();
+	return dibHeader.dataSize;
 }
 
 BMPHeader BMPFile::getBmpHeader() {
@@ -227,11 +230,6 @@ void BMPHeader::printInfo() {
 	std::cout << "pixelOffset: " << pixelOffset << '\n';
 	std::cout << '\n';
 }
-
-unsigned int BMPHeader::getPixelOffset() {
-	return pixelOffset;
-}
-
 
 
 //DIBHeader
@@ -279,48 +277,6 @@ void DIBHeader::printInfo() {
 	std::cout << '\n';
 }
 
-unsigned int DIBHeader::getDataSize() {
-	return dataSize;
-}
-
-unsigned int DIBHeader::getWidth() {
-	return width;
-}
-
-unsigned int DIBHeader::getHeight() {
-	return height;
-}
-
-unsigned int DIBHeader::getPWidth() {
-	return pwidth;
-}
-
-unsigned int DIBHeader::getPHeight() {
-	return pheight;
-}
-
-unsigned int DIBHeader::getBitsPerPixel() {
-	return bitsPerPixel;
-}
-
-void DIBHeader::setWidth(const unsigned int& newWidth) {
-	width = newWidth;
-}
-
-void DIBHeader::setHeight(const unsigned int& newHeight) {
-	height = newHeight;
-}
-
-void DIBHeader::setPWidth(const unsigned int& newPWidth) {
-	pwidth = newPWidth;
-}
-
-void DIBHeader::setPHeight(const unsigned int& newPHeight) {
-	pheight = newPHeight;
-}
-
-
-
 // RGBPixel
 
 RGBPixel::RGBPixel() :
@@ -334,37 +290,6 @@ RGBPixel::RGBPixel(const unsigned char& _red, const unsigned char& _green, const
 	green(_green),
 	blue(_blue)
 {}
-
-
-unsigned char RGBPixel::getRed() {
-	return red;
-}
-
-unsigned char RGBPixel::getGreen() {
-	return green;
-}
-
-unsigned char RGBPixel::getBlue() {
-	return blue;
-}
-
-void RGBPixel::setRed(const unsigned char& _red) {
-	red = _red;
-}
-
-void RGBPixel::setGreen(const unsigned char& _green) {
-	green = _green;
-}
-
-void RGBPixel::setBlue(const unsigned char& _blue) {
-	blue = _blue;
-}
-
-void RGBPixel::setAll(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue) {
-	red = _red;
-	green = _green;
-	blue = _blue;
-}
 
 void RGBPixel::printPix() {
 	printf("%02x ", red);
@@ -440,9 +365,9 @@ RGBPixel** Gauss::rawToRGB(BMPFile& img) {
 	int ri = h - 1, rj = 0;
 	while (ri >= 0) {
 		while (rj < (int)w) {
-			res[ri][rj].setBlue(data[curDataIndex]);
-			res[ri][rj].setGreen(data[curDataIndex + 1]);
-			res[ri][rj].setRed(data[curDataIndex + 2]);
+			res[ri][rj].blue = data[curDataIndex];
+			res[ri][rj].green = data[curDataIndex + 1];
+			res[ri][rj].red = data[curDataIndex + 2];
 
 			rj++;
 			curDataIndex += cntBytePix;
@@ -500,9 +425,9 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 
 					//std::cout << "PixelX: " << pixelX << ", PixelY: " << pixelY << '\n';
 
-					sumR += 1.0 * img[pixelX][pixelY].getRed() * kernel[kx][ky];
-					sumG += 1.0 * img[pixelX][pixelY].getGreen() * kernel[kx][ky];
-					sumB += 1.0 * img[pixelX][pixelY].getBlue() * kernel[kx][ky];
+					sumR += 1.0 * img[pixelX][pixelY].red * kernel[kx][ky];
+					sumG += 1.0 * img[pixelX][pixelY].green * kernel[kx][ky];
+					sumB += 1.0 * img[pixelX][pixelY].blue * kernel[kx][ky];
 				}
 			}
 
@@ -520,7 +445,7 @@ RGBPixel** Gauss::applyConvolution(RGBPixel** img, unsigned int height, unsigned
 			std::cout << "NewBlue: " << newBlue << '\n';*/
 			
 
-			res[x][y].setAll(newRed, newGreen, newBlue);
+			res[x][y] = RGBPixel(newRed, newGreen, newBlue);
 		}
 	}
 
@@ -540,9 +465,9 @@ unsigned char* Gauss::RGBToRaw(RGBPixel** img, unsigned int height, unsigned int
 	int j = 0;
 	while (i >= 0) {
 		while (j < (int)w) {
-			data[curDataIndex++] = img[i][j].getBlue();
-			data[curDataIndex++] = img[i][j].getGreen();
-			data[curDataIndex++] = img[i][j].getRed();
+			data[curDataIndex++] = img[i][j].blue;
+			data[curDataIndex++] = img[i][j].green;
+			data[curDataIndex++] = img[i][j].red;
 
 			j++;
 		}
