@@ -36,6 +36,7 @@ int main() {
 
 	Gauss gs(kernelSize, sigma);
 	gs.createGaussKernel();
+
 	BMPFile blurBmp = gs.computeBlur(bmp);
 
 	std::cout << "Image has been blurred\n";

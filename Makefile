@@ -12,7 +12,7 @@ OBJ = $(patsubst %.cpp, %.o, $(SRC))
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(OBJ) -o $@
+	$(CXX) $(OBJ) -o $@ $(CXXFLAGS)
 
 all: app
 

@@ -48,6 +48,8 @@ struct DIBHeader {
 	void printInfo();
 };
 
+struct ArrayPixel;
+
 class BMPFile {
 private:
 	BMPHeader bmpHeader;
@@ -57,7 +59,8 @@ public:
 	BMPFile();
 	BMPFile(BMPFile& p);
 	BMPFile(const std::string& filename);
-	BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, unsigned char* _data);
+	BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const ArrayPixel& arr);
+	~BMPFile();
 
 	void readBMP(const std::string& filename);
 	void writeBMP(const std::string& filename);
@@ -88,6 +91,18 @@ struct RGBPixel {
 	void printPix();
 };
 
+struct ArrayPixel {
+	unsigned int height;
+	unsigned int width;
+	RGBPixel** data;
+
+	ArrayPixel(const uint& _height, const uint& _width);
+	ArrayPixel(BMPFile& img);
+	~ArrayPixel();
+
+	//unsigned char* toRaw(unsigned int dataSize, unsigned int bitsPerPixel);
+};
+
 struct Gauss {
 	unsigned int kernelSize;
 	double sigma;
@@ -95,13 +110,12 @@ struct Gauss {
 
 	Gauss();
 	Gauss(const unsigned int& _kernelSize, const double& _sigma);
+	~Gauss();
 
 	void createGaussKernel();
 	void printKernel();
 
-	RGBPixel** rawToRGB(BMPFile& img);
-	RGBPixel** applyConvolution(RGBPixel** img, unsigned int height, unsigned int width);
-	unsigned char* RGBToRaw(RGBPixel** img, unsigned int height, unsigned int width, unsigned int dataSize, unsigned int bitsPerPixel);
+	ArrayPixel applyConvolution(const ArrayPixel& img, unsigned int height, unsigned int width);
 	BMPFile computeBlur(BMPFile& img);
 
 	double gaussFunc(int x, int y, double sigma);
