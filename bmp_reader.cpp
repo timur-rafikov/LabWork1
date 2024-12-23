@@ -105,80 +105,90 @@ void BMPFile::readBMP(const std::string& filename) {
 }
 
 BMPFile BMPFile::rotateRight() {
-	BMPFile res;
-	res.bmpHeader = BMPHeader(bmpHeader);
-	res.dibHeader = DIBHeader(dibHeader);
 
-	std::swap(res.dibHeader.width, res.dibHeader.height); // swapping height and width
-	std::swap(res.dibHeader.pwidth, res.dibHeader.pheight);
+	printInfo();
+	ArrayPixel tmp(*this);
 
-	res.data = new unsigned char[dibHeader.dataSize];
+	int h = dibHeader.height, w = dibHeader.width;
+	ArrayPixel res(w, h);
 
-	unsigned int h = dibHeader.height, w = dibHeader.width;
-	unsigned int cntBytePix = dibHeader.bitsPerPixel / 8;
-	unsigned char tmp[h][w * cntBytePix];
-	/*
-		Next comes the pixel data conversion.
-		I sat with a piece of paper for a very long time 
-		and thought about how to expand the bytes carefully.
-
-		And in the end, I couldn't think of anything better than 
-		to first bring the pixel data into a two-dimensional array (as in the picture), and 
-		then rewrite this data into an rotated view.
-
-		Since the bmp file has the property of data alignment, 
-		we need to process the zeros at the end of each line separately.
-		Next, I count the number of zeros that will be written (this is just the inverse remainder 
-		of the number of bytes in a string modulo 4), skip them and write the data further
-	*/
-	unsigned int countOfByte = cntBytePix * w;
-	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
-	
-	unsigned int curDataIndex = 0;
-	int i = h - 1, j = 0;
-	while (i >= 0) {
-		while (j < (int)countOfByte) {
-			for (uint el = 0; el < cntBytePix; ++el) {
-				tmp[i][j + cntBytePix - el - 1] = data[curDataIndex + el]; 
-			}
-			j += cntBytePix;
-			curDataIndex += cntBytePix;
+	for (int i = 0; i < h; ++i) {
+		for (int j = 0; j < w; ++j) {
+			res.data[j][h - 1 - i] = tmp.data[i][j];
 		}
-		curDataIndex += countOfNull;
-
-		i--;
-		j = 0;
 	}
+	std::swap(h, w);
+
+	DIBHeader newDibHeader = dibHeader;
+	BMPHeader newBmpHeader = bmpHeader;
+
+	newDibHeader.height = h;
+	newDibHeader.width = w;
+
+	uint cntBytePix = newDibHeader.bitsPerPixel / 8;
+	int countOfByte2 = cntBytePix * w;
+    int countOfNull2 = (4 - (countOfByte2 % 4)) % 4; // Паддинг
+
+    newDibHeader.pheight = h;
+    newDibHeader.pwidth = countOfByte2 + countOfNull2;
+    newDibHeader.dataSize = (countOfByte2 + countOfNull2) * h;
+    newBmpHeader.fileSize = 54 + sizeof(DIBHeader) + newDibHeader.dataSize;
+
+    return BMPFile(newBmpHeader, newDibHeader, res);
+
 
 	/*
-		I write data in a similar way. To do this, you need to count the number of 
-		zeros separately and write them at the end of each line
-	*/
+	ArrayPixel tmp(*this);
+	// int x = 0, y = 999;
+	// std::cout << x << ' ' << y << " pixel ";
+	// tmp.data[x][y].printPix();
+	// std::cout << '\n';
 
-	unsigned int countOfByte2 = cntBytePix * h;
-	unsigned int countOfNull2 = ((4 - (countOfByte2 % 4)) % 4);
-	char null = 0;
+    BMPFile res;
 
-	curDataIndex = 0;
-	i = h - 1;
-	j = w * cntBytePix - 1;
-	while (j >= 0) {
-		while (i >= 0) {
-			for (uint el = 0; el < cntBytePix; ++el) {
-				res.data[curDataIndex + el] = tmp[i][j - el];
-			}
-			i--;
-			curDataIndex += cntBytePix;
-		}
+    res.bmpHeader = BMPHeader(bmpHeader);
+    res.dibHeader = DIBHeader(dibHeader);
 
-		for (uint el = 0; el < countOfNull2; ++el)
-			res.data[curDataIndex++] = null;
+    // Меняем ширину и высоту
+    std::swap(res.dibHeader.width, res.dibHeader.height);
 
-		j -= cntBytePix;
-		i = h - 1;
-	}
+    int h = res.dibHeader.height; // Новая высота
+    int w = res.dibHeader.width;  // Новая ширина
+    uint cntBytePix = res.dibHeader.bitsPerPixel / 8;
+
+    // Правильный расчет длины строки с учетом паддинга
+    int countOfByte2 = cntBytePix * w;
+    int countOfNull2 = (4 - (countOfByte2 % 4)) % 4; // Паддинг
+
+    res.dibHeader.pheight = h;
+    res.dibHeader.pwidth = countOfByte2 + countOfNull2;
+
+    // Обновление заголовков
+    res.dibHeader.dataSize = (countOfByte2 + countOfNull2) * h; // Новый размер данных
+    res.bmpHeader.fileSize = 54 + sizeof(DIBHeader) + res.dibHeader.dataSize; // Общий размер файла
+
+    res.data = new unsigned char[res.dibHeader.dataSize];
+
+    int curDataIndex = 0;
+
+	std::cout << "tmp.height: " << tmp.height << ' ' << "tmp.width: " << tmp.width << '\n';
+	std::cout << "countOfNull2: " << countOfNull2 << '\n';
+	for (int j = tmp.width - 1; j >= 0; j--) { 
+        for (int i = tmp.height - 1; i >= 0; i--) { 
+            //std::cout << "I: " << i << " J: " << j << " curDataIndex: " << curDataIndex << '\n';
+            res.data[curDataIndex] = tmp.data[i][j].blue;
+            res.data[curDataIndex + 1] = tmp.data[i][j].green;
+            res.data[curDataIndex + 2] = tmp.data[i][j].red;
+
+            curDataIndex += cntBytePix;
+        }
+
+        for (int el = 0; el < countOfNull2; ++el)
+            res.data[curDataIndex++] = 0;
+    }
 
 	return res;
+	*/
 }
 
 BMPFile BMPFile::rotateLeft() {
@@ -424,6 +434,7 @@ ArrayPixel::ArrayPixel(BMPFile& img) {
 	//ArrayPixel(h, w);
 	height = h;
 	width = w;
+	std::cout << img.getHeight() << ' ' << width << '\n';
 	data = new RGBPixel*[height];
 	for (uint i = 0; i < height; ++i)
 		data[i] = new RGBPixel[width];
@@ -458,6 +469,18 @@ ArrayPixel::~ArrayPixel() {
 		delete[] data;
 	}
 }
+
+void ArrayPixel::printInfo() {
+	for (uint i = 0; i < height; ++i) {
+		for (uint j = 0; j < width; ++j) {
+			data[i][j].printPix();
+			std::cout << ' ';
+		}
+		std::cout << '\n';
+	}
+}
+
+// Gauss
 
 Gauss::Gauss() :
 	kernelSize(0),

@@ -100,6 +100,8 @@ struct ArrayPixel {
 	ArrayPixel(BMPFile& img);
 	~ArrayPixel();
 
+	void printInfo();
+
 	//unsigned char* toRaw(unsigned int dataSize, unsigned int bitsPerPixel);
 };
 
