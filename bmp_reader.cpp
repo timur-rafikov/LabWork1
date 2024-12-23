@@ -31,254 +31,178 @@ BMPFile::BMPFile(const std::string& filename) {
 	readBMP(filename);
 }
 
-BMPFile::BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const ArrayPixel& arr) {
-	bmpHeader = _bmphdr;
-	dibHeader = _dibhdr;
+// Constructor for BMPFile that initializes from headers and pixel data
+BMPFile::BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const std::vector<std::vector<RGBPixel>>& _data)
+    : bmpHeader(_bmphdr), dibHeader(_dibhdr), data(_data) // Member initializer list
+{
+    // Ensure that the pixel data is valid
+    if (data.size() != dibHeader.height || (data.size() > 0 && data[0].size() != dibHeader.width)) {
+        throw std::invalid_argument("Pixel data dimensions do not match DIB header dimensions.");
+    }
 
-	unsigned int h = arr.height, w = arr.width;
-
-	data = new unsigned char[dibHeader.dataSize];
-
-	unsigned int cntBytePix = dibHeader.bitsPerPixel / 8;
-	unsigned int countOfByte = cntBytePix * w;
-	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
-
-	unsigned int curDataIndex = 0;
-	int i = h - 1;
-	int j = 0;
-	while (i >= 0) {
-		while (j < (int)w) {
-			data[curDataIndex++] = arr.data[i][j].blue;
-			data[curDataIndex++] = arr.data[i][j].green;
-			data[curDataIndex++] = arr.data[i][j].red;
-
-			j++;
-		}
-		for (uint el = 0; el < countOfNull; ++el)
-			data[curDataIndex++] = 0;
-
-		i--;
-		j = 0;
-	}
+    // Optionally, you can perform additional validation or processing here
 }
 
-BMPFile::BMPFile(BMPFile& p) {
-	bmpHeader = p.bmpHeader;
-	dibHeader = p.dibHeader;
 
-	if (p.data) {
-		data = new unsigned char[getDataSize()];
-		std::copy(p.data, p.data + getDataSize(), data);
-	} else data = nullptr;
+BMPFile::BMPFile(BMPFile& p) 
+    : bmpHeader(p.bmpHeader), 
+      dibHeader(p.dibHeader), 
+      data(p.data) // Deep copy the pixel data
+{
+    // Ensure that we create a new vector for pixel data
+    data.resize(p.dibHeader.height);
+    for (size_t i = 0; i < p.dibHeader.height; ++i) {
+        data[i].resize(p.dibHeader.width);
+        std::copy(p.data[i].begin(), p.data[i].end(), data[i].begin());
+    }
 }
 
-BMPFile::~BMPFile() {
-	if (data != nullptr)
-		delete[] data;
-}
 
 void BMPFile::readBMP(const std::string& filename) {
-	std::ifstream file(filename, std::ios::binary);
-	if (!file) {
-		std::cerr << "Failed to open file\n";
-		return; 
-	}
+    std::ifstream file(filename, std::ios::binary);
+    
+    if (!file) {
+        throw std::runtime_error("Error opening file.");
+    }
 
-	std::cout << "Reading the BMP file ...\n";
+    // Read BMP header
+    file.read(reinterpret_cast<char*>(&bmpHeader), sizeof(BMPHeader));
+    if (bmpHeader.ID[0] != 'B' || bmpHeader.ID[1] != 'M') {
+        throw std::runtime_error("Not a valid BMP file.");
+    }
 
-	std::size_t fsize = std::filesystem::file_size(filename); // reading the amount of data
-	std::cout << "TASK 1: BMP file size: " << fsize << " bytes\n\n";
-	
-	// Reading Headers
-	file.read(reinterpret_cast<char*>(&bmpHeader), sizeof(bmpHeader));
-	file.read(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
+    // Read DIB header
+    file.read(reinterpret_cast<char*>(&dibHeader), sizeof(DIBHeader));
 
-	// Reading Pixel Data
-	data = new unsigned char[dibHeader.dataSize];
+    // Output BMP file size
+    std::cout << "TASK 1: BMP file size: " << bmpHeader.fileSize << " bytes\n\n";
 
-	file.seekg(bmpHeader.pixelOffset, std::ios::beg);
-	file.read(reinterpret_cast<char*>(data), dibHeader.dataSize);
+    // Adjust height if it's negative (top-down DIB)
+    dibHeader.height = abs(dibHeader.height);
+    
+    if (dibHeader.width == 0 || dibHeader.height == 0) {
+        throw std::runtime_error("Unexpected image dimensions.");
+    }
 
-	file.close();
+    // Move to pixel data offset
+    file.seekg(bmpHeader.pixelOffset, std::ios::beg);
 
-	std::cout << "TASK 2: The BMP file is uploaded!\n\n";
+    // Initialize pixel data vector
+    data.resize(dibHeader.height, std::vector<RGBPixel>(dibHeader.width));
+
+    // Calculate padding for each row
+    size_t rowSize = dibHeader.width * sizeof(RGBPixel);
+    size_t padding = (4 - (rowSize % 4)) % 4;
+
+    // Read pixel data row by row
+    for (int i = dibHeader.height - 1; i >= 0; --i) { // BMP files are stored bottom-to-top
+        file.read(reinterpret_cast<char*>(data[i].data()), rowSize);
+        file.ignore(padding); // Skip padding bytes
+        if (!file) {
+            throw std::runtime_error("Error reading pixel data.");
+        }
+    }
+
+    file.close();
+    std::cout << "TASK 2: The BMP file is uploaded!\n\n";
 }
 
 BMPFile BMPFile::rotateRight() {
+    // Get original dimensions
+    int originalHeight = dibHeader.height;
+    int originalWidth = dibHeader.width;
 
-	printInfo();
-	ArrayPixel tmp(*this);
+    // Create a new vector for the rotated image
+    std::vector<std::vector<RGBPixel>> rotatedData(originalWidth, std::vector<RGBPixel>(originalHeight));
 
-	int h = dibHeader.height, w = dibHeader.width;
-	ArrayPixel res(w, h);
-
-	for (int i = 0; i < h; ++i) {
-		for (int j = 0; j < w; ++j) {
-			res.data[j][h - 1 - i] = tmp.data[i][j];
-		}
-	}
-	std::swap(h, w);
-
-	DIBHeader newDibHeader = dibHeader;
-	BMPHeader newBmpHeader = bmpHeader;
-
-	newDibHeader.height = h;
-	newDibHeader.width = w;
-
-	uint cntBytePix = newDibHeader.bitsPerPixel / 8;
-	int countOfByte2 = cntBytePix * w;
-    int countOfNull2 = (4 - (countOfByte2 % 4)) % 4; // Паддинг
-
-    newDibHeader.pheight = h;
-    newDibHeader.pwidth = countOfByte2 + countOfNull2;
-    newDibHeader.dataSize = (countOfByte2 + countOfNull2) * h;
-    newBmpHeader.fileSize = 54 + sizeof(DIBHeader) + newDibHeader.dataSize;
-
-    return BMPFile(newBmpHeader, newDibHeader, res);
-
-
-	/*
-	ArrayPixel tmp(*this);
-	// int x = 0, y = 999;
-	// std::cout << x << ' ' << y << " pixel ";
-	// tmp.data[x][y].printPix();
-	// std::cout << '\n';
-
-    BMPFile res;
-
-    res.bmpHeader = BMPHeader(bmpHeader);
-    res.dibHeader = DIBHeader(dibHeader);
-
-    // Меняем ширину и высоту
-    std::swap(res.dibHeader.width, res.dibHeader.height);
-
-    int h = res.dibHeader.height; // Новая высота
-    int w = res.dibHeader.width;  // Новая ширина
-    uint cntBytePix = res.dibHeader.bitsPerPixel / 8;
-
-    // Правильный расчет длины строки с учетом паддинга
-    int countOfByte2 = cntBytePix * w;
-    int countOfNull2 = (4 - (countOfByte2 % 4)) % 4; // Паддинг
-
-    res.dibHeader.pheight = h;
-    res.dibHeader.pwidth = countOfByte2 + countOfNull2;
-
-    // Обновление заголовков
-    res.dibHeader.dataSize = (countOfByte2 + countOfNull2) * h; // Новый размер данных
-    res.bmpHeader.fileSize = 54 + sizeof(DIBHeader) + res.dibHeader.dataSize; // Общий размер файла
-
-    res.data = new unsigned char[res.dibHeader.dataSize];
-
-    int curDataIndex = 0;
-
-	std::cout << "tmp.height: " << tmp.height << ' ' << "tmp.width: " << tmp.width << '\n';
-	std::cout << "countOfNull2: " << countOfNull2 << '\n';
-	for (int j = tmp.width - 1; j >= 0; j--) { 
-        for (int i = tmp.height - 1; i >= 0; i--) { 
-            //std::cout << "I: " << i << " J: " << j << " curDataIndex: " << curDataIndex << '\n';
-            res.data[curDataIndex] = tmp.data[i][j].blue;
-            res.data[curDataIndex + 1] = tmp.data[i][j].green;
-            res.data[curDataIndex + 2] = tmp.data[i][j].red;
-
-            curDataIndex += cntBytePix;
+    // Rotate the image 90 degrees clockwise
+    for (int i = 0; i < originalHeight; ++i) {
+        for (int j = 0; j < originalWidth; ++j) {
+            // Place pixel in new position
+            rotatedData[j][originalHeight - 1 - i] = data[i][j];
         }
-
-        for (int el = 0; el < countOfNull2; ++el)
-            res.data[curDataIndex++] = 0;
     }
 
-	return res;
-	*/
+    // Update DIB header for new dimensions
+    DIBHeader newDibHeader = dibHeader;
+    newDibHeader.width = originalHeight;
+    newDibHeader.height = originalWidth;
+
+    // Calculate padding for the new width
+    unsigned int paddingSize = (4 - (newDibHeader.width * sizeof(RGBPixel)) % 4) % 4;
+    newDibHeader.dataSize = (newDibHeader.width * sizeof(RGBPixel) + paddingSize) * newDibHeader.height;
+
+    // Update BMP header file size
+    BMPHeader newBmpHeader = bmpHeader;
+    newBmpHeader.fileSize = sizeof(BMPHeader) + sizeof(DIBHeader) + newDibHeader.dataSize;
+
+    // Return a new BMPFile object with updated headers and rotated data
+    return BMPFile(newBmpHeader, newDibHeader, rotatedData);
 }
+
+
 
 BMPFile BMPFile::rotateLeft() {
-	BMPFile res;
-	res.bmpHeader = BMPHeader(bmpHeader);
-	res.dibHeader = DIBHeader(dibHeader);
+    // Get original dimensions
+    int originalHeight = dibHeader.height;
+    int originalWidth = dibHeader.width;
 
-	std::swap(res.dibHeader.width, res.dibHeader.height); // swapping height and width
-	std::swap(res.dibHeader.pwidth, res.dibHeader.pheight);
+    // Create a new vector for the rotated image
+    std::vector<std::vector<RGBPixel>> rotatedData(originalWidth, std::vector<RGBPixel>(originalHeight));
 
-	res.data = new unsigned char[dibHeader.dataSize];
-
-	unsigned int h = dibHeader.height, w = dibHeader.width;
-	unsigned int cntBytePix = dibHeader.bitsPerPixel / 8;
-	unsigned char tmp[h][w * cntBytePix];
-	/*
-		Next comes the pixel data conversion.
-		I sat with a piece of paper for a very long time 
-		and thought about how to expand the bytes carefully.
-
-		And in the end, I couldn't think of anything better than 
-		to first bring the pixel data into a two-dimensional array (as in the picture), and 
-		then rewrite this data into an rotated view.
-
-		Since the bmp file has the property of data alignment, 
-		we need to process the zeros at the end of each line separately.
-		Next, I count the number of zeros that will be written (this is just the inverse remainder 
-		of the number of bytes in a string modulo 4), skip them and write the data further
-	*/
-	unsigned int countOfByte = cntBytePix * w;
-	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
-	
-	unsigned int curDataIndex = 0;
-	int i = h - 1, j = 0;
-	while (i >= 0) {
-		while (j < (int)countOfByte) {
-			for (uint el = 0; el < cntBytePix; ++el) {
-				tmp[i][j + cntBytePix - el - 1] = data[curDataIndex + el]; 
-			}
-			j += cntBytePix;
-			curDataIndex += cntBytePix;
-		}
-		curDataIndex += countOfNull;
-
-		i--;
-		j = 0;
-	}
-
-	/*
-		I write data in a similar way. To do this, you need to count the number of 
-		zeros separately and write them at the end of each line
-	*/
-
-    // Write data to the result in rotated form
-    unsigned int countOfByte2 = cntBytePix * h;
-    unsigned int countOfNull2 = ((4 - (countOfByte2 % 4)) % 4);
-    char null = 0;
-
-    curDataIndex = 0;
-    j = 2; // Start from the leftmost column of the original image
-    i = 0; // Start from the topmost row of the rotated image
-    while (j < (int)(w * cntBytePix)) {
-        while (i < (int)(h)) {
-            for (uint el = 0; el < cntBytePix; ++el) {
-                res.data[curDataIndex + el] = tmp[i][j - el]; // Rotate left
-            }
-            i++;
-            curDataIndex += cntBytePix;
+    // Rotate the image 90 degrees counterclockwise
+    for (int i = 0; i < originalHeight; ++i) {
+        for (int j = 0; j < originalWidth; ++j) {
+            // Place pixel in new position
+            rotatedData[originalWidth - 1 - j][i] = data[i][j];
         }
-
-        // Add padding bytes at the end of each row
-        for (uint el = 0; el < countOfNull2; ++el)
-            res.data[curDataIndex++] = null;
-
-        j += cntBytePix; // Move to the next column
-        i = 0; // Reset row index to the top
     }
 
-    return res;
+    // Update DIB header for new dimensions
+    DIBHeader newDibHeader = dibHeader;
+    newDibHeader.width = originalHeight;
+    newDibHeader.height = originalWidth;
+
+    // Calculate padding for the new width
+    unsigned int paddingSize = (4 - (newDibHeader.width * sizeof(RGBPixel)) % 4) % 4;
+    newDibHeader.dataSize = (newDibHeader.width * sizeof(RGBPixel) + paddingSize) * newDibHeader.height;
+
+    // Update BMP header file size
+    BMPHeader newBmpHeader = bmpHeader;
+    newBmpHeader.fileSize = sizeof(BMPHeader) + sizeof(DIBHeader) + newDibHeader.dataSize;
+
+    // Return a new BMPFile object with updated headers and rotated data
+    return BMPFile(newBmpHeader, newDibHeader, rotatedData);
 }
+
 
 void BMPFile::writeBMP(const std::string& filename) {
-	std::ofstream file(filename, std::ios::out | std::ios::binary);
+    std::ofstream file(filename, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Error saving file.");
+    }
 
-	file.write(reinterpret_cast<char*>(&bmpHeader), sizeof(bmpHeader));
-	file.write(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
-	file.write(reinterpret_cast<char*>(data), dibHeader.dataSize);
+    int byte = dibHeader.height * dibHeader.width * sizeof(RGBPixel);
 
-	file.close();
+    std::cout << "File " << filename << " uses " << byte << " bytes." << std::endl;
+
+    file.write(reinterpret_cast<const char *>(&bmpHeader), sizeof(bmpHeader));
+    file.write(reinterpret_cast<const char *>(&dibHeader), sizeof(dibHeader));
+
+    unsigned int rowSize = dibHeader.width * sizeof(RGBPixel);
+    unsigned int paddingSize = (4 - (rowSize % 4)) % 4;
+    unsigned char padding[3] = {0, 0, 0}; // Padding bytes
+
+    for (int i = dibHeader.height - 1; i >= 0; --i) {
+        file.write(reinterpret_cast<const char *>(data[i].data()), dibHeader.width * sizeof(RGBPixel));
+
+        file.write(reinterpret_cast<char*>(padding), paddingSize);
+    }
+
+    file.close();
 }
+
+
 
 void BMPFile::printInfo() {
 	bmpHeader.printInfo();
@@ -291,8 +215,12 @@ void BMPFile::printData() {
 			printf("\n%04x: ", i);
 		printf("%02x ", data[i]);
 	}*/
-	for (uint i = 0; i < dibHeader.dataSize; ++i) {
-		printf("%02x ", data[i]);
+	for (int i = 0; i < dibHeader.height; ++i) {
+		for (int j = 0; j < dibHeader.width; ++j) {
+			data[i][j].printPix();
+			std::cout << ' ';
+		}
+		std::cout << '\n';
 	}
 }
 
@@ -308,7 +236,7 @@ unsigned int BMPFile::getBitsPerPixel() {
 	return dibHeader.bitsPerPixel;
 }
 
-unsigned char* BMPFile::getData() {
+std::vector<std::vector<RGBPixel>> BMPFile::getData() {
 	return data;
 }
 
@@ -418,68 +346,6 @@ void RGBPixel::printPix() {
 	printf("%02x ", blue);
 }
 
-// ArrayPixel
-
-ArrayPixel::ArrayPixel(const uint& _height, const uint& _width) {
-	height = _height;
-	width = _width;
-	data = new RGBPixel*[height];
-	for (uint i = 0; i < height; ++i)
-		data[i] = new RGBPixel[width];
-}
-
-ArrayPixel::ArrayPixel(BMPFile& img) {
-	unsigned int h = img.getHeight(), w = img.getWidth();
-
-	//ArrayPixel(h, w);
-	height = h;
-	width = w;
-	std::cout << img.getHeight() << ' ' << width << '\n';
-	data = new RGBPixel*[height];
-	for (uint i = 0; i < height; ++i)
-		data[i] = new RGBPixel[width];
-
-	unsigned int cntBytePix = img.getBitsPerPixel() / 8;
-	unsigned int countOfByte = cntBytePix * w;
-	unsigned int countOfNull = ((4 - (countOfByte % 4)) % 4);
-
-	unsigned int curDataIndex = 0;
-	int ri = h - 1, rj = 0;
-	while (ri >= 0) {
-		while (rj < (int)w) {
-			data[ri][rj].blue = img.getData()[curDataIndex];
-			data[ri][rj].green = img.getData()[curDataIndex + 1];
-			data[ri][rj].red = img.getData()[curDataIndex + 2];
-
-			rj++;
-			curDataIndex += cntBytePix;
-		}
-		curDataIndex += countOfNull;
-
-		ri--;
-		rj = 0;
-	}
-}
-
-ArrayPixel::~ArrayPixel() {
-	if (data != nullptr) {
-		for (uint i = 0; i < height; ++i) {
-			delete[] data[i];
-		}
-		delete[] data;
-	}
-}
-
-void ArrayPixel::printInfo() {
-	for (uint i = 0; i < height; ++i) {
-		for (uint j = 0; j < width; ++j) {
-			data[i][j].printPix();
-			std::cout << ' ';
-		}
-		std::cout << '\n';
-	}
-}
-
 // Gauss
 
 Gauss::Gauss() :
@@ -490,23 +356,13 @@ Gauss::Gauss() :
 
 Gauss::Gauss(const unsigned int& _kernelSize, const double& _sigma) :
 	kernelSize(_kernelSize),
-	sigma(_sigma),
-	kernel(0)
+	sigma(_sigma)
 {}
 
-Gauss::~Gauss() {
-	if (kernel != nullptr) {
-		for (uint i = 0; i < kernelSize; ++i) {
-			delete[] kernel[i];
-		}
-		delete[] kernel;
-	}
-}
-
 void Gauss::createGaussKernel() {
-	kernel = new double*[kernelSize];
-	for (uint i = 0; i < kernelSize; ++i)
-		kernel[i] = new double[kernelSize];
+	kernel.resize(kernelSize);
+	for (int i = 0; i < kernelSize; ++i)
+		kernel[i].resize(kernelSize);
 
 
 	int radius = kernelSize / 2;
@@ -532,19 +388,19 @@ double Gauss::gaussFunc(int x, int y, double sigma) {
 }
 
 void Gauss::printKernel() {
-	for (uint i = 0; i < kernelSize; ++i) {
-		for (uint j = 0; j < kernelSize; ++j) {
+	for (int i = 0; i < kernelSize; ++i) {
+		for (int j = 0; j < kernelSize; ++j) {
 			std::cout << kernel[i][j] << ' ';
 		}
 		std::cout << '\n';
 	}
 }
 
-ArrayPixel Gauss::applyConvolution(const ArrayPixel& img, unsigned int height, unsigned int width) {
+std::vector<std::vector<RGBPixel>> Gauss::applyConvolution(const std::vector<std::vector<RGBPixel>>& img, unsigned int height, unsigned int width) {
 	unsigned int h = height;
 	unsigned int w = width;
 
-	ArrayPixel res(h, w);
+	std::vector<std::vector<RGBPixel>> res(h, std::vector<RGBPixel>(w));
 
 	int radius = kernelSize / 2;
 
@@ -570,9 +426,9 @@ ArrayPixel Gauss::applyConvolution(const ArrayPixel& img, unsigned int height, u
 					else if (pixelY >= (int)w)
 						pixelY = (int)w - (pixelY - (int)w) - 1;
 
-					sumR += 1.0 * img.data[pixelX][pixelY].red * kernel[kx][ky];
-					sumG += 1.0 * img.data[pixelX][pixelY].green * kernel[kx][ky];
-					sumB += 1.0 * img.data[pixelX][pixelY].blue * kernel[kx][ky];
+					sumR += 1.0 * img[pixelX][pixelY].red * kernel[kx][ky];
+					sumG += 1.0 * img[pixelX][pixelY].green * kernel[kx][ky];
+					sumB += 1.0 * img[pixelX][pixelY].blue * kernel[kx][ky];
 				}
 			}
 
@@ -580,7 +436,7 @@ ArrayPixel Gauss::applyConvolution(const ArrayPixel& img, unsigned int height, u
 			unsigned char newGreen = std::min(std::max(sumG, 0.), 255.);
 			unsigned char newBlue = std::min(std::max(sumB, 0.), 255.);
 
-			res.data[x][y] = RGBPixel(newRed, newGreen, newBlue);
+			res[x][y] = RGBPixel(newRed, newGreen, newBlue);
 		}
 	}
 
@@ -588,9 +444,9 @@ ArrayPixel Gauss::applyConvolution(const ArrayPixel& img, unsigned int height, u
 }
 
 BMPFile Gauss::computeBlur(BMPFile& img) {
-	ArrayPixel rgbarr(img);
+	std::vector<std::vector<RGBPixel>> rgbarr = img.getData();
 	
-	ArrayPixel convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
+	std::vector<std::vector<RGBPixel>> convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
 	
 	BMPFile res(img.getBmpHeader(), img.getDibHeader(), convarr);
 	

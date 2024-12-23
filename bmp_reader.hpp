@@ -14,6 +14,7 @@
 #define BMP_READER
 
 #include <string>
+#include <vector>
 
 #pragma pack(push, 1) // for alignment in the data
 
@@ -48,38 +49,6 @@ struct DIBHeader {
 	void printInfo();
 };
 
-struct ArrayPixel;
-
-class BMPFile {
-private:
-	BMPHeader bmpHeader;
-	DIBHeader dibHeader;
-	unsigned char* data;
-public:
-	BMPFile();
-	BMPFile(BMPFile& p);
-	BMPFile(const std::string& filename);
-	BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const ArrayPixel& arr);
-	~BMPFile();
-
-	void readBMP(const std::string& filename);
-	void writeBMP(const std::string& filename);
-
-	BMPFile rotateRight();
-	BMPFile rotateLeft();
-
-	unsigned int getHeight();
-	unsigned int getWidth();
-	unsigned int getBitsPerPixel();
-	unsigned int getDataSize();
-	unsigned char* getData();
-	BMPHeader getBmpHeader();
-	DIBHeader getDibHeader();
-
-	void printInfo();
-	void printData();
-};
-
 struct RGBPixel {
 	unsigned char red;
 	unsigned char green;
@@ -91,33 +60,47 @@ struct RGBPixel {
 	void printPix();
 };
 
-struct ArrayPixel {
-	unsigned int height;
-	unsigned int width;
-	RGBPixel** data;
+class BMPFile {
+private:
+	BMPHeader bmpHeader;
+	DIBHeader dibHeader;
+	std::vector<std::vector<RGBPixel>> data;
+public:
+	BMPFile();
+	BMPFile(BMPFile& p);
+	BMPFile(const std::string& filename);
+	BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const std::vector<std::vector<RGBPixel>>& _data);
 
-	ArrayPixel(const uint& _height, const uint& _width);
-	ArrayPixel(BMPFile& img);
-	~ArrayPixel();
+	void readBMP(const std::string& filename);
+	void writeBMP(const std::string& filename);
+
+	BMPFile rotateRight();
+	BMPFile rotateLeft();
+
+	unsigned int getHeight();
+	unsigned int getWidth();
+	unsigned int getBitsPerPixel();
+	unsigned int getDataSize();
+	std::vector<std::vector<RGBPixel>> getData();
+	BMPHeader getBmpHeader();
+	DIBHeader getDibHeader();
 
 	void printInfo();
-
-	//unsigned char* toRaw(unsigned int dataSize, unsigned int bitsPerPixel);
+	void printData();
 };
 
 struct Gauss {
 	unsigned int kernelSize;
 	double sigma;
-	double** kernel;
+	std::vector<std::vector<double>> kernel;
 
 	Gauss();
 	Gauss(const unsigned int& _kernelSize, const double& _sigma);
-	~Gauss();
 
 	void createGaussKernel();
 	void printKernel();
 
-	ArrayPixel applyConvolution(const ArrayPixel& img, unsigned int height, unsigned int width);
+	std::vector<std::vector<RGBPixel>> applyConvolution(const std::vector<std::vector<RGBPixel>>& img, unsigned int height, unsigned int width);
 	BMPFile computeBlur(BMPFile& img);
 
 	double gaussFunc(int x, int y, double sigma);
