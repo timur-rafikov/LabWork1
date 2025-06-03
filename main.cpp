@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <string>
+#include <chrono>
 #include "bmp_reader.hpp"
 
 int main() {
@@ -15,9 +16,15 @@ int main() {
 	std::cin >> filename;
 
 	BMPFile bmp(filename);
-	
+
+	auto start = std::chrono::high_resolution_clock::now();	// start time
+
 	BMPFile bmpRight = bmp.rotateRight();
 	BMPFile bmpLeft = bmp.rotateLeft();
+
+	auto end = std::chrono::high_resolution_clock::now();  // end time
+	std::chrono::duration<double> duration = end - start;
+	std::cout << "Sequential TIME of rotation: " << duration.count() << " seconds\n";
 
 	bmpRight.writeBMP("RightSaved" + filename);
 	bmpLeft.writeBMP("LeftSaved" + filename);
@@ -33,11 +40,16 @@ int main() {
 	std::cin >> kernelSize >> sigma;
 	std::cout << "Blurring image...\n";
 
+	start = std::chrono::high_resolution_clock::now();
 
 	Gauss gs(kernelSize, sigma);
 	gs.createGaussKernel();
 
 	BMPFile blurBmp = gs.computeBlur(bmp);
+
+	end = std::chrono::high_resolution_clock::now();
+	duration = end - start;
+	std::cout << "Sequential TIME of blurring: " << duration.count() << " seconds\n";
 
 	std::cout << "Image has been blurred\n";
 

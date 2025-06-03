@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <omp.h>
 #define _USE_MATH_DEFINES
 #include <cmath>
 /*
@@ -57,54 +58,54 @@ BMPFile::BMPFile(BMPFile& p)
     }
 }
 
+bool BMPFile::allocateMemory(int height, int width) {
+	try {
+        data.resize(height);
+        for (int i = 0; i < height; ++i) {
+            data[i].resize(width);
+        }
+        return true;
+    } catch (const std::bad_alloc&) {
+        std::cerr << "Failed to allocate memory for image data." << std::endl;
+        data.clear();
+        return false;
+    }
+}
 
 void BMPFile::readBMP(const std::string& filename) {
-    std::ifstream file(filename, std::ios::binary);
-    
+	std::ifstream file(filename, std::ios::binary);
     if (!file) {
         throw std::runtime_error("Error opening file.");
     }
 
-    // Read BMP header
-    file.read(reinterpret_cast<char*>(&bmpHeader), sizeof(BMPHeader));
-    if (bmpHeader.ID[0] != 'B' || bmpHeader.ID[1] != 'M') {
-        throw std::runtime_error("Not a valid BMP file.");
-    }
+    // Читаем заголовки BMP
+    file.read(reinterpret_cast<char *>(&bmpHeader), sizeof(bmpHeader));
+    file.read(reinterpret_cast<char *>(&dibHeader), sizeof(dibHeader));
 
-    // Read DIB header
-    file.read(reinterpret_cast<char*>(&dibHeader), sizeof(DIBHeader));
-
-    // Output BMP file size
-    std::cout << "TASK 1: BMP file size: " << bmpHeader.fileSize << " bytes\n\n";
-
-    // Adjust height if it's negative (top-down DIB)
     dibHeader.height = abs(dibHeader.height);
-    
+    dibHeader.width = abs(dibHeader.width);
+
     if (dibHeader.width == 0 || dibHeader.height == 0) {
-        throw std::runtime_error("Unexpected image dimensions.");
+        throw std::runtime_error("Unexpected file size.");
     }
 
-    // Move to pixel data offset
-    file.seekg(bmpHeader.pixelOffset, std::ios::beg);
+    // Переходим к данным изображения
+    file.seekg(bmpHeader.pixelOffset, file.beg);
 
-    // Initialize pixel data vector
-    data.resize(dibHeader.height, std::vector<RGBPixel>(dibHeader.width));
+    // Выделяем память построчно
+    if (!allocateMemory(dibHeader.height, dibHeader.width)) {
+        throw std::runtime_error("Failed to allocate memory for image.");
+    }
 
-    // Calculate padding for each row
-    size_t rowSize = dibHeader.width * sizeof(RGBPixel);
-    size_t padding = (4 - (rowSize % 4)) % 4;
-
-    // Read pixel data row by row
-    for (int i = dibHeader.height - 1; i >= 0; --i) { // BMP files are stored bottom-to-top
-        file.read(reinterpret_cast<char*>(data[i].data()), rowSize);
-        file.ignore(padding); // Skip padding bytes
+    // Считываем данные построчно
+    for (int i = dibHeader.height - 1; i >= 0; --i) {
+        file.read(reinterpret_cast<char *>(data[i].data()), dibHeader.width * sizeof(RGBPixel));
         if (!file) {
-            throw std::runtime_error("Error reading pixel data.");
+            throw std::runtime_error("Error reading file.");
         }
     }
 
     file.close();
-    std::cout << "TASK 2: The BMP file is uploaded!\n\n";
 }
 
 BMPFile BMPFile::rotateRight() {
@@ -116,6 +117,7 @@ BMPFile BMPFile::rotateRight() {
     std::vector<std::vector<RGBPixel>> rotatedData(originalWidth, std::vector<RGBPixel>(originalHeight));
 
     // Rotate the image 90 degrees clockwise
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i < originalHeight; ++i) {
         for (int j = 0; j < originalWidth; ++j) {
             // Place pixel in new position
@@ -131,6 +133,9 @@ BMPFile BMPFile::rotateRight() {
     // Calculate padding for the new width
     unsigned int paddingSize = (4 - (newDibHeader.width * sizeof(RGBPixel)) % 4) % 4;
     newDibHeader.dataSize = (newDibHeader.width * sizeof(RGBPixel) + paddingSize) * newDibHeader.height;
+
+    newDibHeader.pheight = newDibHeader.height;
+    newDibHeader.pwidth = newDibHeader.width * sizeof(RGBPixel) + paddingSize;
 
     // Update BMP header file size
     BMPHeader newBmpHeader = bmpHeader;
@@ -151,6 +156,7 @@ BMPFile BMPFile::rotateLeft() {
     std::vector<std::vector<RGBPixel>> rotatedData(originalWidth, std::vector<RGBPixel>(originalHeight));
 
     // Rotate the image 90 degrees counterclockwise
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i < originalHeight; ++i) {
         for (int j = 0; j < originalWidth; ++j) {
             // Place pixel in new position
@@ -167,6 +173,9 @@ BMPFile BMPFile::rotateLeft() {
     unsigned int paddingSize = (4 - (newDibHeader.width * sizeof(RGBPixel)) % 4) % 4;
     newDibHeader.dataSize = (newDibHeader.width * sizeof(RGBPixel) + paddingSize) * newDibHeader.height;
 
+    newDibHeader.pheight = newDibHeader.height;
+    newDibHeader.pwidth = newDibHeader.width * sizeof(RGBPixel) + paddingSize;
+
     // Update BMP header file size
     BMPHeader newBmpHeader = bmpHeader;
     newBmpHeader.fileSize = sizeof(BMPHeader) + sizeof(DIBHeader) + newDibHeader.dataSize;
@@ -182,24 +191,24 @@ void BMPFile::writeBMP(const std::string& filename) {
         throw std::runtime_error("Error saving file.");
     }
 
-    int byte = dibHeader.height * dibHeader.width * sizeof(RGBPixel);
+    // Update BMP header file size
+    bmpHeader.fileSize = sizeof(BMPHeader) + sizeof(DIBHeader) + dibHeader.dataSize;
 
-    std::cout << "File " << filename << " uses " << byte << " bytes." << std::endl;
-
-    file.write(reinterpret_cast<const char *>(&bmpHeader), sizeof(bmpHeader));
-    file.write(reinterpret_cast<const char *>(&dibHeader), sizeof(dibHeader));
+    // Write headers
+    file.write(reinterpret_cast<char*>(&bmpHeader), sizeof(bmpHeader));
+    file.write(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
 
     unsigned int rowSize = dibHeader.width * sizeof(RGBPixel);
     unsigned int paddingSize = (4 - (rowSize % 4)) % 4;
     unsigned char padding[3] = {0, 0, 0}; // Padding bytes
 
-    for (int i = dibHeader.height - 1; i >= 0; --i) {
-        file.write(reinterpret_cast<const char *>(data[i].data()), dibHeader.width * sizeof(RGBPixel));
-
-        file.write(reinterpret_cast<char*>(padding), paddingSize);
+    // Write pixel data with padding
+    for (int i = 0; i < dibHeader.height; ++i) {
+        file.write(reinterpret_cast<char*>(data[dibHeader.height - 1 - i].data()), rowSize); // Write rows from bottom to top
+        file.write(reinterpret_cast<char*>(padding), paddingSize); // Write padding for each row
     }
 
-    file.close();
+    file.close(); // Ensure the file is closed after writing
 }
 
 
@@ -210,11 +219,6 @@ void BMPFile::printInfo() {
 }
 
 void BMPFile::printData() {
-	/*for (unsigned int i = 0; i < dibHeader.getDataSize(); ++i) {
-		if (i % 16 == 0)
-			printf("\n%04x: ", i);
-		printf("%02x ", data[i]);
-	}*/
 	for (int i = 0; i < dibHeader.height; ++i) {
 		for (int j = 0; j < dibHeader.width; ++j) {
 			data[i][j].printPix();
@@ -255,27 +259,25 @@ DIBHeader BMPFile::getDibHeader() {
 // BMPHeader
 
 BMPHeader::BMPHeader() {
-	ID[0] = 0;
-	ID[1] = 1;
-	fileSize = 0;
-	for (int i = 0; i < 4; ++i)
-		unused[i] = 0;
-	pixelOffset = 0;
+	type = 0;
+    fileSize = 0;
+    reserved1 = 0;
+    reserved2 = 0;
+    pixelOffset = 0;
 }
 
 BMPHeader::BMPHeader(const BMPHeader& p) {
-	ID[0] = p.ID[0];
-	ID[1] = p.ID[1];
-	fileSize = p.fileSize;
-	for (int i = 0; i < 4; ++i)
-		unused[i] = p.unused[i];
-	pixelOffset = p.pixelOffset;
+	type = p.type;
+    fileSize = p.fileSize;
+    reserved1 = p.reserved1;
+    reserved2 = p.reserved2;
+    pixelOffset = p.pixelOffset;
 }
 
 void BMPHeader::printInfo() {
-	std::cout << "ID: " << ' ' << ID[0] << ' ' << ID[1] << '\n';
+	std::cout << "Type: " << type << '\n';
 	std::cout << "fileSize: " << fileSize << '\n';
-	std::cout << "unused: " << unused[0] << ' ' << unused[1] << ' ' << unused[2] << ' ' << unused[3] << '\n';
+	std::cout << "reserved: " << reserved1 << ' ' << reserved2 << '\n';
 	std::cout << "pixelOffset: " << pixelOffset << '\n';
 	std::cout << '\n';
 }
@@ -334,7 +336,7 @@ RGBPixel::RGBPixel() :
 	blue(0)
 {}
 
-RGBPixel::RGBPixel(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue) :
+RGBPixel::RGBPixel(const uint8_t& _red, const uint8_t& _green, const uint8_t& _blue) :
 	red(_red),
 	green(_green),
 	blue(_blue)
@@ -368,6 +370,8 @@ void Gauss::createGaussKernel() {
 	int radius = kernelSize / 2;
 
 	double sum = 0.0;
+
+	#pragma omp parallel for reduction(+:sum) collapse(2)
 	for (int y = -radius; y <= radius; ++y) {
 		for (int x = -radius; x <= radius; ++x) {
 			double value = gaussFunc(x, y, sigma);
@@ -376,6 +380,7 @@ void Gauss::createGaussKernel() {
 		}
 	}
 
+	#pragma omp parallel for collapse(2)
 	for (uint x = 0; x < kernelSize; ++x) {
 		for (uint y = 0; y < kernelSize; ++y) {
 			kernel[x][y] /= sum;
@@ -404,6 +409,7 @@ std::vector<std::vector<RGBPixel>> Gauss::applyConvolution(const std::vector<std
 
 	int radius = kernelSize / 2;
 
+	#pragma omp parallel for collapse(2)
 	for (uint x = 0; x < h; ++x) {
 		for (uint y = 0; y < w; ++y) {
 			double sumR = 0;

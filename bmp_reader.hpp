@@ -15,14 +15,16 @@
 
 #include <string>
 #include <vector>
+#include <stdint.h>
 
 #pragma pack(push, 1) // for alignment in the data
 
 struct BMPHeader {
-	unsigned char ID[2];
-	unsigned int fileSize;
-	unsigned char unused[4];
-	unsigned int pixelOffset;
+	uint16_t type;
+    uint32_t fileSize;
+    uint16_t reserved2;
+    uint16_t reserved1;
+    uint32_t pixelOffset;
 
 	BMPHeader();
 	BMPHeader(const BMPHeader& p);
@@ -31,17 +33,18 @@ struct BMPHeader {
 };
 
 struct DIBHeader {
-	unsigned int headerSize;
-	unsigned int width;
-	unsigned int height;
-	unsigned short colorPlanes;
-	unsigned short bitsPerPixel;
-	unsigned int BI_RGB;
-	unsigned int dataSize;
-	unsigned int pwidth;
-	unsigned int pheight;
-	unsigned int colorsCount;
-	unsigned int impColorsCount;
+
+	uint32_t headerSize;
+    int32_t width;
+    int32_t height;
+    uint16_t colorPlanes;
+    uint16_t bitsPerPixel;
+    uint32_t BI_RGB;  //  (0 = none)
+    uint32_t dataSize;
+    int32_t pwidth;
+    int32_t pheight;
+    uint32_t colorsCount;
+    uint32_t impColorsCount;
 
 	DIBHeader();
 	DIBHeader(const DIBHeader& p);
@@ -49,13 +52,15 @@ struct DIBHeader {
 	void printInfo();
 };
 
+#pragma pack(pop)
+
 struct RGBPixel {
-	unsigned char red;
-	unsigned char green;
-	unsigned char blue;
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
 
 	RGBPixel();
-	RGBPixel(const unsigned char& _red, const unsigned char& _green, const unsigned char& _blue);
+	RGBPixel(const uint8_t& _red, const uint8_t& _green, const uint8_t& _blue);
 
 	void printPix();
 };
@@ -73,6 +78,7 @@ public:
 
 	void readBMP(const std::string& filename);
 	void writeBMP(const std::string& filename);
+	bool allocateMemory(int height, int width);
 
 	BMPFile rotateRight();
 	BMPFile rotateLeft();
@@ -107,8 +113,6 @@ struct Gauss {
 };
 
 
-
-#pragma pack(pop)
 
 
 #endif
