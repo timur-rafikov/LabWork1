@@ -1,7 +1,9 @@
-/* Author: Timur Rafikov
- * e-mail: st128186@student.spbu.ru
- * Assignment3: Transformers classes
- * 28.10.2024
+/**
+ * @file bmp_reader.cpp
+ * @author Timur Rafikov
+ * @brief Implementation of BMP image processing classes and methods.
+ * @date 2024-10-28
+ * @see bmp_reader.hpp
  */
 
 #include "bmp_reader.hpp"
@@ -12,45 +14,49 @@
 #include <omp.h>
 #define _USE_MATH_DEFINES
 #include <cmath>
-/*
-	I read whether it is worth making several cpp files, 
-	since there are quite a lot of functions. I have decided that I will not do this, 
-	as it may complicate the development.
 
-	Therefore, this file contains the implementation of the 
-	BMPFile, BMPHeader and DIBHeader methods in order.
-*/
+// ==================== BMPFile ====================
 
-// BMPFile
-
+/**
+ * @brief Default constructor. Initializes BMPHeader and DIBHeader.
+ */
 BMPFile::BMPFile() {
 	bmpHeader = BMPHeader();
 	dibHeader = DIBHeader();
 }
 
+/**
+ * @brief Constructs a BMPFile by reading from file.
+ * @param filename Path to the BMP file.
+ */
 BMPFile::BMPFile(const std::string& filename) {
 	readBMP(filename);
 }
 
-// Constructor for BMPFile that initializes from headers and pixel data
+/**
+ * @brief Constructs a BMPFile with explicit headers and pixel data.
+ * @param _bmphdr BMPHeader structure.
+ * @param _dibhdr DIBHeader structure.
+ * @param _data 2D vector of RGBPixel representing image data.
+ * @throws std::invalid_argument if data dimensions do not match header info.
+ */
 BMPFile::BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const std::vector<std::vector<RGBPixel>>& _data)
-    : bmpHeader(_bmphdr), dibHeader(_dibhdr), data(_data) // Member initializer list
+    : bmpHeader(_bmphdr), dibHeader(_dibhdr), data(_data)
 {
-    // Ensure that the pixel data is valid
     if (data.size() != dibHeader.height || (data.size() > 0 && data[0].size() != dibHeader.width)) {
         throw std::invalid_argument("Pixel data dimensions do not match DIB header dimensions.");
     }
-
-    // Optionally, you can perform additional validation or processing here
 }
 
-
+/**
+ * @brief Copy constructor.
+ * @param p BMPFile object to copy.
+ */
 BMPFile::BMPFile(BMPFile& p) 
     : bmpHeader(p.bmpHeader), 
       dibHeader(p.dibHeader), 
-      data(p.data) // Deep copy the pixel data
+      data(p.data)
 {
-    // Ensure that we create a new vector for pixel data
     data.resize(p.dibHeader.height);
     for (size_t i = 0; i < p.dibHeader.height; ++i) {
         data[i].resize(p.dibHeader.width);
@@ -58,6 +64,12 @@ BMPFile::BMPFile(BMPFile& p)
     }
 }
 
+/**
+ * @brief Allocates memory for image data.
+ * @param height Image height.
+ * @param width Image width.
+ * @return true on success, false on failure.
+ */
 bool BMPFile::allocateMemory(int height, int width) {
 	try {
         data.resize(height);
@@ -72,13 +84,17 @@ bool BMPFile::allocateMemory(int height, int width) {
     }
 }
 
+/**
+ * @brief Reads BMP file and populates headers and data.
+ * @param filename Path to BMP file.
+ * @throws std::runtime_error on file or read error.
+ */
 void BMPFile::readBMP(const std::string& filename) {
 	std::ifstream file(filename, std::ios::binary);
     if (!file) {
         throw std::runtime_error("Error opening file.");
     }
 
-    // Читаем заголовки BMP
     file.read(reinterpret_cast<char *>(&bmpHeader), sizeof(bmpHeader));
     file.read(reinterpret_cast<char *>(&dibHeader), sizeof(dibHeader));
 
@@ -89,15 +105,12 @@ void BMPFile::readBMP(const std::string& filename) {
         throw std::runtime_error("Unexpected file size.");
     }
 
-    // Переходим к данным изображения
     file.seekg(bmpHeader.pixelOffset, file.beg);
 
-    // Выделяем память построчно
     if (!allocateMemory(dibHeader.height, dibHeader.width)) {
         throw std::runtime_error("Failed to allocate memory for image.");
     }
 
-    // Считываем данные построчно
     for (int i = dibHeader.height - 1; i >= 0; --i) {
         file.read(reinterpret_cast<char *>(data[i].data()), dibHeader.width * sizeof(RGBPixel));
         if (!file) {
@@ -108,6 +121,10 @@ void BMPFile::readBMP(const std::string& filename) {
     file.close();
 }
 
+/**
+ * @brief Rotates the image 90 degrees clockwise.
+ * @return Rotated BMPFile object.
+ */
 BMPFile BMPFile::rotateRight() {
     // Get original dimensions
     int originalHeight = dibHeader.height;
@@ -145,8 +162,10 @@ BMPFile BMPFile::rotateRight() {
     return BMPFile(newBmpHeader, newDibHeader, rotatedData);
 }
 
-
-
+/**
+ * @brief Rotates the image 90 degrees counter-clockwise.
+ * @return Rotated BMPFile object.
+ */
 BMPFile BMPFile::rotateLeft() {
     // Get original dimensions
     int originalHeight = dibHeader.height;
@@ -184,7 +203,11 @@ BMPFile BMPFile::rotateLeft() {
     return BMPFile(newBmpHeader, newDibHeader, rotatedData);
 }
 
-
+/**
+ * @brief Writes BMP image to file.
+ * @param filename Path to save the image.
+ * @throws std::runtime_error on write failure.
+ */
 void BMPFile::writeBMP(const std::string& filename) {
     std::ofstream file(filename, std::ios::binary);
     if (!file) {
@@ -209,55 +232,54 @@ void BMPFile::writeBMP(const std::string& filename) {
     }
 
     file.close(); // Ensure the file is closed after writing
+
 }
 
-
-
+/**
+ * @brief Prints header info to stdout.
+ */
 void BMPFile::printInfo() {
 	bmpHeader.printInfo();
 	dibHeader.printInfo();
 }
 
+/**
+ * @brief Prints image pixel data to stdout.
+ */
 void BMPFile::printData() {
 	for (int i = 0; i < dibHeader.height; ++i) {
-		for (int j = 0; j < dibHeader.width; ++j) {
-			data[i][j].printPix();
-			std::cout << ' ';
-		}
-		std::cout << '\n';
-	}
+        for (int j = 0; j < dibHeader.width; ++j) {
+            data[i][j].printPix();
+            std::cout << ' ';
+        }
+        std::cout << '\n';
+    }
 }
 
-unsigned int BMPFile::getHeight() {
-	return dibHeader.height;
-}
+/** @brief Returns image height. */
+unsigned int BMPFile::getHeight() { return dibHeader.height; }
 
-unsigned int BMPFile::getWidth() {
-	return dibHeader.width;
-}
+/** @brief Returns image width. */
+unsigned int BMPFile::getWidth() { return dibHeader.width; }
 
-unsigned int BMPFile::getBitsPerPixel() {
-	return dibHeader.bitsPerPixel;
-}
+/** @brief Returns bits per pixel. */
+unsigned int BMPFile::getBitsPerPixel() { return dibHeader.bitsPerPixel; }
 
-std::vector<std::vector<RGBPixel>> BMPFile::getData() {
-	return data;
-}
+/** @brief Returns image pixel data. */
+std::vector<std::vector<RGBPixel>> BMPFile::getData() { return data; }
 
-unsigned int BMPFile::getDataSize() {
-	return dibHeader.dataSize;
-}
+/** @brief Returns size of image data. */
+unsigned int BMPFile::getDataSize() { return dibHeader.dataSize; }
 
-BMPHeader BMPFile::getBmpHeader() {
-	return bmpHeader;
-}
+/** @brief Returns BMP file header. */
+BMPHeader BMPFile::getBmpHeader() { return bmpHeader; }
 
-DIBHeader BMPFile::getDibHeader() {
-	return dibHeader;
-}
+/** @brief Returns DIB header. */
+DIBHeader BMPFile::getDibHeader() { return dibHeader; }
 
-// BMPHeader
+// ==================== BMPHeader ====================
 
+/** @brief Default constructor. */
 BMPHeader::BMPHeader() {
 	type = 0;
     fileSize = 0;
@@ -266,6 +288,7 @@ BMPHeader::BMPHeader() {
     pixelOffset = 0;
 }
 
+/** @brief Copy constructor. */
 BMPHeader::BMPHeader(const BMPHeader& p) {
 	type = p.type;
     fileSize = p.fileSize;
@@ -274,187 +297,216 @@ BMPHeader::BMPHeader(const BMPHeader& p) {
     pixelOffset = p.pixelOffset;
 }
 
+/** @brief Prints BMPHeader fields to stdout. */
 void BMPHeader::printInfo() {
 	std::cout << "Type: " << type << '\n';
-	std::cout << "fileSize: " << fileSize << '\n';
-	std::cout << "reserved: " << reserved1 << ' ' << reserved2 << '\n';
-	std::cout << "pixelOffset: " << pixelOffset << '\n';
-	std::cout << '\n';
+    std::cout << "fileSize: " << fileSize << '\n';
+    std::cout << "reserved: " << reserved1 << ' ' << reserved2 << '\n';
+    std::cout << "pixelOffset: " << pixelOffset << '\n';
+    std::cout << '\n';
 }
 
+// ==================== DIBHeader ====================
 
-//DIBHeader
-
+/** @brief Default constructor. */
 DIBHeader::DIBHeader() {
 	headerSize = 0;
-	width = 0;
-	height = 0;
-	colorPlanes = 0;
-	bitsPerPixel = 0;
-	BI_RGB = 0;
-	dataSize = 0;
-	pwidth = 0;
-	pheight = 0;
-	colorsCount = 0;
-	impColorsCount = 0;
+    width = 0;
+    height = 0;
+    colorPlanes = 0;
+    bitsPerPixel = 0;
+    BI_RGB = 0;
+    dataSize = 0;
+    pwidth = 0;
+    pheight = 0;
+    colorsCount = 0;
+    impColorsCount = 0;
 }
 
+/** @brief Copy constructor. */
 DIBHeader::DIBHeader(const DIBHeader& p) {
 	headerSize = p.headerSize;
-	width = p.width;
-	height = p.height;
-	colorPlanes = p.colorPlanes;
-	bitsPerPixel = p.bitsPerPixel;
-	BI_RGB = p.BI_RGB;
-	dataSize = p.dataSize;
-	pwidth = p.pwidth;
-	pheight = p.pheight;
-	colorsCount = p.colorsCount;
-	impColorsCount = p.impColorsCount;
+    width = p.width;
+    height = p.height;
+    colorPlanes = p.colorPlanes;
+    bitsPerPixel = p.bitsPerPixel;
+    BI_RGB = p.BI_RGB;
+    dataSize = p.dataSize;
+    pwidth = p.pwidth;
+    pheight = p.pheight;
+    colorsCount = p.colorsCount;
+    impColorsCount = p.impColorsCount;
 }
 
+/** @brief Prints DIBHeader fields to stdout. */
 void DIBHeader::printInfo() {
 	std::cout << "headerSize: " << headerSize << '\n';
-	std::cout << "width: " << width << '\n';
-	std::cout << "height: " << height << '\n';
-	std::cout << "colorPlanes: " << colorPlanes << '\n';
-	std::cout << "bitsPerPixel: " << bitsPerPixel << '\n';
-	std::cout << "BI_RGB: " << BI_RGB << '\n';
-	std::cout << "dataSize: " << dataSize << '\n';
-	std::cout << "pwidth: " << pwidth << '\n';
-	std::cout << "pheight: " << pheight << '\n';
-	std::cout << "colorsCount: " << colorsCount << '\n';
-	std::cout << "impColorsCount: " << impColorsCount << '\n';
-	std::cout << '\n';
+    std::cout << "width: " << width << '\n';
+    std::cout << "height: " << height << '\n';
+    std::cout << "colorPlanes: " << colorPlanes << '\n';
+    std::cout << "bitsPerPixel: " << bitsPerPixel << '\n';
+    std::cout << "BI_RGB: " << BI_RGB << '\n';
+    std::cout << "dataSize: " << dataSize << '\n';
+    std::cout << "pwidth: " << pwidth << '\n';
+    std::cout << "pheight: " << pheight << '\n';
+    std::cout << "colorsCount: " << colorsCount << '\n';
+    std::cout << "impColorsCount: " << impColorsCount << '\n';
+    std::cout << '\n';
 }
 
-// RGBPixel
+// ==================== RGBPixel ====================
 
-RGBPixel::RGBPixel() :
-	red(0),
-	green(0),
-	blue(0)
-{}
+/** @brief Default constructor. */
+RGBPixel::RGBPixel() : red(0), green(0), blue(0) {}
 
+/**
+ * @brief Parameterized constructor.
+ * @param _red Red component.
+ * @param _green Green component.
+ * @param _blue Blue component.
+ */
 RGBPixel::RGBPixel(const uint8_t& _red, const uint8_t& _green, const uint8_t& _blue) :
-	red(_red),
-	green(_green),
-	blue(_blue)
-{}
+	red(_red), green(_green), blue(_blue) {}
 
+/** @brief Prints RGB values to stdout. */
 void RGBPixel::printPix() {
 	printf("%02x ", red);
-	printf("%02x ", green);
-	printf("%02x ", blue);
+    printf("%02x ", green);
+    printf("%02x ", blue);
 }
 
-// Gauss
+// ==================== Gauss ====================
 
-Gauss::Gauss() :
-	kernelSize(0),
-	sigma(0),
-	kernel(0)
-{}
+/** @brief Default constructor. */
+Gauss::Gauss() : kernelSize(0), sigma(0), kernel(0) {}
 
+/**
+ * @brief Parameterized constructor.
+ * @param _kernelSize Size of the Gaussian kernel.
+ * @param _sigma Standard deviation of the Gaussian function.
+ */
 Gauss::Gauss(const unsigned int& _kernelSize, const double& _sigma) :
-	kernelSize(_kernelSize),
-	sigma(_sigma)
-{}
+	kernelSize(_kernelSize), sigma(_sigma) {}
 
+/** 
+ * @brief Generates a 2D Gaussian kernel matrix.
+ */
 void Gauss::createGaussKernel() {
 	kernel.resize(kernelSize);
-	for (int i = 0; i < kernelSize; ++i)
-		kernel[i].resize(kernelSize);
+    for (int i = 0; i < kernelSize; ++i)
+        kernel[i].resize(kernelSize);
 
 
-	int radius = kernelSize / 2;
+    int radius = kernelSize / 2;
 
-	double sum = 0.0;
+    double sum = 0.0;
 
-	#pragma omp parallel for reduction(+:sum) collapse(2)
-	for (int y = -radius; y <= radius; ++y) {
-		for (int x = -radius; x <= radius; ++x) {
-			double value = gaussFunc(x, y, sigma);
-			sum += value;
-			kernel[y + radius][x + radius] = value;
-		}
-	}
+    #pragma omp parallel for reduction(+:sum) collapse(2)
+    for (int y = -radius; y <= radius; ++y) {
+        for (int x = -radius; x <= radius; ++x) {
+            double value = gaussFunc(x, y, sigma);
+            sum += value;
+            kernel[y + radius][x + radius] = value;
+        }
+    }
 
-	#pragma omp parallel for collapse(2)
-	for (uint x = 0; x < kernelSize; ++x) {
-		for (uint y = 0; y < kernelSize; ++y) {
-			kernel[x][y] /= sum;
-		}
-	}
+    #pragma omp parallel for collapse(2)
+    for (uint x = 0; x < kernelSize; ++x) {
+        for (uint y = 0; y < kernelSize; ++y) {
+            kernel[x][y] /= sum;
+        }
+    }
 }
 
+/**
+ * @brief Computes the Gaussian function value for given coordinates.
+ * @param x X-offset.
+ * @param y Y-offset.
+ * @param sigma Standard deviation.
+ * @return Gaussian weight.
+ */
 double Gauss::gaussFunc(int x, int y, double sigma) {
 	return ((1. / (2 * M_PI * sigma * sigma)) * exp(-((x * x + y * y) / (2 * sigma * sigma))));
 }
 
+/**
+ * @brief Prints the generated kernel matrix.
+ */
 void Gauss::printKernel() {
 	for (int i = 0; i < kernelSize; ++i) {
-		for (int j = 0; j < kernelSize; ++j) {
-			std::cout << kernel[i][j] << ' ';
-		}
-		std::cout << '\n';
-	}
+        for (int j = 0; j < kernelSize; ++j) {
+            std::cout << kernel[i][j] << ' ';
+        }
+        std::cout << '\n';
+    }
 }
 
+/**
+ * @brief Applies convolution with the Gaussian kernel.
+ * @param img Input image as 2D vector of RGBPixel.
+ * @param height Image height.
+ * @param width Image width.
+ * @return Blurred image data.
+ */
 std::vector<std::vector<RGBPixel>> Gauss::applyConvolution(const std::vector<std::vector<RGBPixel>>& img, unsigned int height, unsigned int width) {
 	unsigned int h = height;
-	unsigned int w = width;
+    unsigned int w = width;
 
-	std::vector<std::vector<RGBPixel>> res(h, std::vector<RGBPixel>(w));
+    std::vector<std::vector<RGBPixel>> res(h, std::vector<RGBPixel>(w));
 
-	int radius = kernelSize / 2;
+    int radius = kernelSize / 2;
 
-	#pragma omp parallel for collapse(2)
-	for (uint x = 0; x < h; ++x) {
-		for (uint y = 0; y < w; ++y) {
-			double sumR = 0;
-			double sumG = 0;
-			double sumB = 0;
+    #pragma omp parallel for collapse(2)
+    for (uint x = 0; x < h; ++x) {
+        for (uint y = 0; y < w; ++y) {
+            double sumR = 0;
+            double sumG = 0;
+            double sumB = 0;
 
-			for (uint kx = 0; kx < kernelSize; ++kx) {
-				for (uint ky = 0; ky < kernelSize; ++ky) {
+            for (uint kx = 0; kx < kernelSize; ++kx) {
+                for (uint ky = 0; ky < kernelSize; ++ky) {
 
-					int pixelX = (int)x - radius + (int)kx;
-					int pixelY = (int)y - radius + (int)ky;
+                    int pixelX = (int)x - radius + (int)kx;
+                    int pixelY = (int)y - radius + (int)ky;
 
-					if (pixelX < 0)
-						pixelX = -pixelX;
-					else if (pixelX >= (int)h)
-						pixelX = (int)h - (pixelX - (int)h) - 1;
+                    if (pixelX < 0)
+                        pixelX = -pixelX;
+                    else if (pixelX >= (int)h)
+                        pixelX = (int)h - (pixelX - (int)h) - 1;
 
-					if (pixelY < 0)
-						pixelY = -pixelY;
-					else if (pixelY >= (int)w)
-						pixelY = (int)w - (pixelY - (int)w) - 1;
+                    if (pixelY < 0)
+                        pixelY = -pixelY;
+                    else if (pixelY >= (int)w)
+                        pixelY = (int)w - (pixelY - (int)w) - 1;
 
-					sumR += 1.0 * img[pixelX][pixelY].red * kernel[kx][ky];
-					sumG += 1.0 * img[pixelX][pixelY].green * kernel[kx][ky];
-					sumB += 1.0 * img[pixelX][pixelY].blue * kernel[kx][ky];
-				}
-			}
+                    sumR += 1.0 * img[pixelX][pixelY].red * kernel[kx][ky];
+                    sumG += 1.0 * img[pixelX][pixelY].green * kernel[kx][ky];
+                    sumB += 1.0 * img[pixelX][pixelY].blue * kernel[kx][ky];
+                }
+            }
 
-			unsigned char newRed = std::min(std::max(sumR, 0.), 255.);
-			unsigned char newGreen = std::min(std::max(sumG, 0.), 255.);
-			unsigned char newBlue = std::min(std::max(sumB, 0.), 255.);
+            unsigned char newRed = std::min(std::max(sumR, 0.), 255.);
+            unsigned char newGreen = std::min(std::max(sumG, 0.), 255.);
+            unsigned char newBlue = std::min(std::max(sumB, 0.), 255.);
 
-			res[x][y] = RGBPixel(newRed, newGreen, newBlue);
-		}
-	}
+            res[x][y] = RGBPixel(newRed, newGreen, newBlue);
+        }
+    }
 
-	return res;
+    return res;
 }
 
+/**
+ * @brief Applies Gaussian blur to an image.
+ * @param img Input BMPFile.
+ * @return Blurred BMPFile.
+ */
 BMPFile Gauss::computeBlur(BMPFile& img) {
 	std::vector<std::vector<RGBPixel>> rgbarr = img.getData();
-	
-	std::vector<std::vector<RGBPixel>> convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
-	
-	BMPFile res(img.getBmpHeader(), img.getDibHeader(), convarr);
-	
-	return res;
+    
+    std::vector<std::vector<RGBPixel>> convarr = applyConvolution(rgbarr, img.getHeight(), img.getWidth());
+    
+    BMPFile res(img.getBmpHeader(), img.getDibHeader(), convarr);
+    
+    return res;
 }
