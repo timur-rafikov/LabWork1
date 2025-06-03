@@ -25,6 +25,10 @@ The program works correctly for 24-bit images (Red Green Blue).
 ```
 docs/html/index.html
 ```
+## Report OpenMP
+```
+docs/report.md
+```
 ## Build
 ```
 make
