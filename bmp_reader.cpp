@@ -43,7 +43,7 @@ BMPFile::BMPFile(const std::string& filename) {
 BMPFile::BMPFile(const BMPHeader& _bmphdr, const DIBHeader& _dibhdr, const std::vector<std::vector<RGBPixel>>& _data)
     : bmpHeader(_bmphdr), dibHeader(_dibhdr), data(_data)
 {
-    if (data.size() != dibHeader.height || (data.size() > 0 && data[0].size() != dibHeader.width)) {
+    if ((int)data.size() != dibHeader.height || (data.size() > 0 && (int)data[0].size() != dibHeader.width)) {
         throw std::invalid_argument("Pixel data dimensions do not match DIB header dimensions.");
     }
 }
@@ -58,7 +58,7 @@ BMPFile::BMPFile(BMPFile& p)
       data(p.data)
 {
     data.resize(p.dibHeader.height);
-    for (size_t i = 0; i < p.dibHeader.height; ++i) {
+    for (int i = 0; i < p.dibHeader.height; ++i) {
         data[i].resize(p.dibHeader.width);
         std::copy(p.data[i].begin(), p.data[i].end(), data[i].begin());
     }
@@ -393,7 +393,7 @@ Gauss::Gauss(const unsigned int& _kernelSize, const double& _sigma) :
  */
 void Gauss::createGaussKernel() {
 	kernel.resize(kernelSize);
-    for (int i = 0; i < kernelSize; ++i)
+    for (uint i = 0; i < kernelSize; ++i)
         kernel[i].resize(kernelSize);
 
 
@@ -433,8 +433,8 @@ double Gauss::gaussFunc(int x, int y, double sigma) {
  * @brief Prints the generated kernel matrix.
  */
 void Gauss::printKernel() {
-	for (int i = 0; i < kernelSize; ++i) {
-        for (int j = 0; j < kernelSize; ++j) {
+	for (uint i = 0; i < kernelSize; ++i) {
+        for (uint j = 0; j < kernelSize; ++j) {
             std::cout << kernel[i][j] << ' ';
         }
         std::cout << '\n';

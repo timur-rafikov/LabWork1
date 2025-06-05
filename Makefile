@@ -1,7 +1,7 @@
 TARGET = app
 
 CXX = g++
-CXXFLAGS = -Wall -g -fopenmp
+CXXFLAGS = -Wall -g -fopenmp -Werror -Wpedantic
 
 DEPS = $(wildcard *.hpp)
 SRC = $(wildcard *.cpp)

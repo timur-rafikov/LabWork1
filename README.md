@@ -23,7 +23,7 @@ asks the user to enter the kernel size and sigma in the console.
 The program works correctly for 24-bit images (Red Green Blue).  
 ## Launch conditions
 For the program to work correctly, the image must be located in the same directory as the executable file.   
-When entering the file name, only the name is entered, for example, "input.bmp"
+When entering the file name, only the name is entered, for example, "img.bmp"
 ## Documentation
 ```
 docs/html/index.html
