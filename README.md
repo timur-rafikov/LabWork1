@@ -21,10 +21,34 @@ image to the right \ to the left and applying the Gauss filter.
 The program applies a Gaussian filter to blur the BMP file, and   
 asks the user to enter the kernel size and sigma in the console.  
 The program works correctly for 24-bit images (Red Green Blue).  
-  
+## Launch conditions
+For the program to work correctly, the image must be located in the same directory as the executable file.   
+When entering the file name, only the name is entered, for example, "img.bmp"
+## Dependencies (Tests won't work without it)
+```
+sudo apt-get install -y g++ make libgtest-dev libgmock-dev
+```
+## Documentation
+```
+docs/html/index.html
+```
+## Report OpenMP
+```
+docs/report.md
+```
+## Testing Report
+```
+docs/testingreport.md
+```
 ## Build
+```
 make
+```
 ## Run
+```
 ./app
+```
 ## Clean
+```
 make clean
+```
