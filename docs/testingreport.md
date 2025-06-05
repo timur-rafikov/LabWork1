@@ -1,13 +1,13 @@
-#BMP Module Test Report
+# BMP Module Test Report
 
-##General Information
+## General Information
 
 - **Project Name:** BMP Image Processor  
 - **Modules:** `BMPFile` and `Gauss`
 - **Test Framework:** [Google Test](https://github.com/google/googletest)  
 - **File Format:** 24-bit BMP (uncompressed)
 
-##Test Structure
+## Test Structure
 
 | Category                  | Test Cases                                              |
 |---------------------------|----------------------------------------------------------|
@@ -17,7 +17,7 @@
 | Copy Constructor          | `CopyConstructorCreatesEqualData`                       |
 | Gaussian Blur             | `CanCreateKernelAndApplyBlur`                           |
 
-##Test Results
+## Test Results
 
 | Test Name                              | Status   | Comments                                      |
 |----------------------------------------|----------|-----------------------------------------------|
@@ -29,6 +29,6 @@
 | `CopyConstructorCreatesEqualData`      | ✅ Passed | Deep copy created with matching pixel data    |
 | `CanCreateKernelAndApplyBlur`          | ✅ Passed | Gaussian filter applied without errors        |
 
-##Conclusion
+## Conclusion
 
 All tests passed successfully
